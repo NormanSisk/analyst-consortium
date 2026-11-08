@@ -22,6 +22,26 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from tradingagents.dataflows.symbols import normalize_symbol
 
 
+# Local addition. The five-point rating scale is written for someone who holds the stock:
+# "Underweight" means reduce, "Hold" means maintain. With no position, Underweight has nothing
+# to reduce, and a run on 2026-11-04 showed the decision agents then rating a view that the
+# Research Manager called Underweight as Sell, which reads as a far harsher verdict. This block
+# restates the scale as entry advice and ties each step to the strength of the evidence, so the
+# same view keeps the same rating whether or not the caller supplied a book. It is neutral about
+# direction: it says what each rating means, not which to prefer.
+NO_POSITION_READING = (
+    "Reading the five ratings with no position in {symbol}: there is nothing to hold, trim or "
+    "exit, so every rating is advice about opening a position. Buy: open a full-size position "
+    "now. Overweight: open a smaller position, or build one in steps. Hold: do not open one "
+    "yet; the case for and against is balanced. Underweight: do not open one; the case against "
+    "is stronger but not decisively. Sell: avoid the stock; the case against is clearly "
+    "stronger. Any of these may name conditions that would change the call, so naming re-entry "
+    "triggers does not make a call a Hold. Choose by how strong the evidence is, not because "
+    "there is no position to sell. A three-way Buy/Hold/Sell shorthand counts Underweight as a "
+    "Sell; the five-way rating keeps them apart."
+)
+
+
 class Position(BaseModel):
     model_config = ConfigDict(allow_inf_nan=False)
 
@@ -36,6 +56,10 @@ class PortfolioContext(BaseModel):
     cash: float | None = Field(default=None, description="Free cash available")
     currency: str | None = Field(default=None, description="Currency label for cash and prices")
     positions: list[Position] = Field(default_factory=list)
+    profile: str | None = Field(
+        default=None,
+        description="The caller's own words on goals, time horizon, risk tolerance and preferences",
+    )
 
     def positions_in(self, ticker: str) -> list[Position]:
         """The holdings of the instrument the run prices for ``ticker``, under any
@@ -65,7 +89,16 @@ class PortfolioContext(BaseModel):
         others = [p for p in self.positions if all(p is not h for h in held)]
         if others:
             lines.append("- Other positions: " + ", ".join(f"{p.ticker.upper()} {p.quantity:,.4g}" for p in others))
-        return "Portfolio at the analysis date:\n" + "\n".join(lines)
+        block = "Portfolio at the analysis date:\n" + "\n".join(lines)
+        if not held:
+            block += "\n\n" + NO_POSITION_READING.format(symbol=symbol)
+        if self.profile and self.profile.strip():
+            block += (
+                "\n\nInvestor profile, in the caller's own words. Use it to judge whether and how much "
+                "to act, and to word the advice. It is background about the caller, not evidence about the "
+                "instrument, and it must not change what the data shows:\n" + self.profile.strip()
+            )
+        return block
 
     def fingerprint(self) -> str:
         """Stable digest of the book, so a changed one cannot resume a stale run."""
