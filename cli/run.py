@@ -23,7 +23,9 @@ from cli.display import (
     update_research_team_status,
 )
 from cli.selections import depth_from_env, get_user_selections, unattended_gaps
-from cli.stats_handler import StatsCallbackHandler
+from cli.usage_log import UsageStatsHandler, describe, record_usage
+from cli.rerun import offer_more_runs
+from tradingagents.agents.conviction import borderline_note
 from tradingagents.agents.rating import is_review, run_rating
 from tradingagents.dataflows.symbols import safe_ticker_component
 from tradingagents.default_config import DEFAULT_CONFIG
@@ -112,7 +114,7 @@ def run_analysis(checkpoint: bool | None = None, portfolio=None, flags=None):
 
     config = _build_run_config(selections, checkpoint)
 
-    stats_handler = StatsCallbackHandler()
+    stats_handler = UsageStatsHandler()
 
     # Normalize analyst selection to predefined order (selection is a 'set', order is fixed)
     selected_set = {analyst.value for analyst in selections["analysts"]}
@@ -384,6 +386,28 @@ def run_analysis(checkpoint: bool | None = None, portfolio=None, flags=None):
             "decision text below and judge it yourself.[/yellow]\n"
         )
     console.print(f"[dim]{analyst_wall_time_tracker.format_summary()}[/dim]")
+
+    note = usage = None
+    try:   # a note on how close the call is must never cost a finished analysis its report
+        note = borderline_note(run_rating(final_state), final_state.get("final_trade_decision", ""))
+        if note:
+            console.print(f"[{'bold yellow' if note[1] else 'dim'}]{note[0]}[/]\n")
+    except Exception as exc:  # noqa: BLE001
+        console.print(f"[yellow]Could not judge how close the call is: {type(exc).__name__}[/yellow]")
+
+    try:   # keeping the totals must never cost a finished analysis its report
+        usage = record_usage(stats_handler, config, selections["ticker"], selections["analysis_date"],
+                             results_dir, time.time() - start_time)
+        console.print(f"[dim]{describe(usage)}[/dim]")
+    except Exception as exc:  # noqa: BLE001
+        console.print(f"[yellow]Could not save the usage totals: {type(exc).__name__}[/yellow]")
+
+    if note and note[1]:   # a borderline call: offer two more runs and a combined verdict
+        try:
+            offer_more_runs(flags, True, usage, final_state.get("final_trade_decision", ""), graph, selections,
+                            portfolio, config, stats_handler, console)
+        except Exception as exc:  # noqa: BLE001 - the finished analysis and its report come first
+            console.print(f"[yellow]Could not run the extra analyses: {type(exc).__name__}: {exc}[/yellow]")
 
     _offer_reports(final_state, graph, selections["ticker"],
                    save=flags.get("save"), show=flags.get("show"), html=flags.get("html"))
