@@ -248,26 +248,38 @@ class TestApi:
         assert 'data-bg="plain"' in html and 'data-bg="market"' in html and 'setBg(' in js
         assert "http" not in css.replace("http://www.w3.org", "")        # no remote images or fonts
 
-    def test_larger_is_the_starting_text_size_with_a_step_down_and_a_step_up(self):
+    def test_normal_is_the_starting_text_size_and_larger_is_the_only_other(self):
         from pathlib import Path
         css = (Path(server.STATIC) / "app.css").read_text(encoding="utf-8")
         html = (Path(server.STATIC) / "index.html").read_text(encoding="utf-8")
         sizes = {name: int(px) for name, px in re.findall(r'html\[data-size="(\w+)"\]\s*\{\s*font-size:(\d+)px', css)}
-        assert sizes == {"small": 14, "normal": 17, "large": 20, "xlarge": 26}      # four steps, each bigger than the last
-        assert re.search(r"html\s*\{\s*font-size:20px;", css)                      # no choice made yet: the Larger size
-        assert '<html lang="en" data-theme="light" data-size="large"' in html
+        assert sizes == {"large": 17}                                              # Larger is the one step up
+        assert re.search(r"html\s*\{\s*font-size:14px;", css)                      # no choice made: Normal, 14px
+        assert '<html lang="en" data-theme="light" data-size="normal"' in html
         pressed = dict(re.findall(r'data-size="(\w+)" aria-pressed="(\w+)">', html))
-        assert pressed == {"small": "false", "normal": "false", "large": "true", "xlarge": "false"}
+        assert pressed == {"normal": "true", "large": "false"}
         labels = dict(re.findall(r'data-size="(\w+)" aria-pressed="\w+">(\w+)</button>', html))
-        assert labels == {"small": "Smaller", "normal": "Normal", "large": "Larger", "xlarge": "Largest"}
+        assert labels == {"normal": "Normal", "large": "Larger"}
+        assert "xlarge" not in css and "xlarge" not in html                       # the larger sizes and their layout rules are gone
 
-    def test_an_earlier_text_size_choice_is_carried_to_the_size_it_showed(self):
+    def test_the_last_choice_is_remembered_and_nothing_is_saved_until_one_is_made(self):
         from pathlib import Path
         js = (Path(server.STATIC) / "app.js").read_text(encoding="utf-8")
-        assert 'SIZE_KEY = "ac-size-v2"' in js and 'pref(SIZE_KEY, v)' in js           # the new meaning is stored under a new key
-        mapping = dict(re.findall(r'(\w+): "(\w+)"', re.search(r"OLD_SIZE_TO_NEW = \{(.*?)\}", js).group(1)))
-        assert mapping == {"small": "normal", "normal": "large", "large": "xlarge", "xlarge": "xlarge"}
-        assert 'setSize(savedSize())' in js and '|| "large"' in js                    # nothing saved: start at Larger
+        assert 'SIZES = ["normal", "large"], SIZE_KEY = "ac-text-size"' in js
+        assert "return SIZES.indexOf(v) >= 0 ? v : \"normal\"" in js                  # nothing saved, or something unknown: Normal
+        # the show functions never store; each choice is stored only in the click handler
+        for name in ("setSize", "setBg", "setTheme"):
+            body = re.search(rf"function {name}\(v\) \{{(.*?)\n", js).group(1)
+            assert "pref(" not in body, name
+        click = js[js.index('document.addEventListener("click"'):]
+        click = click[:click.index("\n});")]
+        assert "pref(SIZE_KEY, t.dataset.size)" in click and 'pref("ac-theme", t.dataset.theme)' in click and 'pref("ac-bg", t.dataset.bg)' in click
+        assert js.count("pref(SIZE_KEY, ") == 1 and "setSize(savedSize())" in js          # one write, in the click handler
+
+    def test_the_four_size_choices_of_earlier_versions_are_forgotten(self):
+        from pathlib import Path
+        js = (Path(server.STATIC) / "app.js").read_text(encoding="utf-8")
+        assert '["ac-size", "ac-size-v2"]' in js and "forgetOldSizes();" in js            # so everyone starts at the new Normal once
 
     def test_the_static_files_are_served(self, dotenv):
         c = client(dotenv)

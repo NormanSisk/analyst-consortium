@@ -24,12 +24,10 @@
   --border-w:4px;
   --page-grad:none; --page-img:none;      /* high contrast is always a plain black page */
 }
-/* Text size: Larger is the starting size (20px), with one step down and one up from the middle pair. */
-html { font-size:20px; }
-html[data-size="small"] { font-size:14px; }
-html[data-size="normal"] { font-size:17px; }
-html[data-size="large"] { font-size:20px; }
-html[data-size="xlarge"] { font-size:26px; }
+/* Text size: two choices. Normal (14px) is where everyone starts; Larger (17px) is for those who want it. The last one a person
+   picks is remembered. Anyone who needs more can use the browser's own zoom, which this layout follows. */
+html { font-size:14px; }
+html[data-size="large"] { font-size:17px; }
 * { box-sizing:border-box; }
 /* A trading-themed backdrop: a soft gradient and a faint candlestick chart, with a thin color bar on top. */
 html[data-bg="market"] body { background-image:var(--page-img), var(--page-grad); background-size:640px 400px, cover;
@@ -105,8 +103,6 @@ li.check > * { min-width:0; }
 .actions { display:flex; gap:.5rem; flex-wrap:wrap; }
 .actions.col { flex-direction:column; align-items:stretch; }
 @media (max-width: 52rem) { li.check { grid-template-columns:minmax(0,1fr); } .badge { min-width:0; } }
-html[data-size="xlarge"] li.check { grid-template-columns:minmax(0,1fr); }
-html[data-size="xlarge"] .badge { min-width:0; }
 /* The run form and the list of analyses */
 [data-theme="dark"], [data-theme="contrast"] { color-scheme:dark; }       /* the date picker follows the theme */
 .panel { border:var(--border-w) solid var(--line); border-radius:.7rem; padding:.9rem 1.1rem 1.1rem; margin:0 0 1.2rem; background:var(--bg); }
@@ -166,7 +162,6 @@ li.ev-request .ev-text { font-family:ui-monospace,Consolas,monospace; font-size:
 li.ev-data .ev-text { color:var(--muted); }
 .reptext { white-space:pre-wrap; max-height:28rem; overflow:auto; border:1px solid var(--line); border-radius:.4rem; padding:.6rem .8rem; background:var(--panel); font-size:.95rem; }
 @media (max-width: 52rem) { li.stage { grid-template-columns:minmax(0,1fr); gap:0; } }
-html[data-size="xlarge"] li.stage { grid-template-columns:minmax(0,1fr); gap:0; }
 /* Find stocks: the search progress, the funnel, and one card per stock (no wide tables, so nothing scrolls sideways) */
 #f-progress { margin-top:1rem; border-top:var(--border-w) solid var(--line); padding-top:.6rem; }
 ol.steps { margin:.4rem 0 0; padding-left:1.4rem; color:var(--muted); }
@@ -211,5 +206,4 @@ ul.conds { list-style:none; margin:.4rem 0 0; padding:0; display:grid; gap:.6rem
 li.cond { display:grid; grid-template-columns:8.5rem minmax(0,1fr); gap:.2rem .8rem; align-items:start; }
 li.cond .badge { justify-self:start; }
 @media (max-width: 52rem) { li.cond { grid-template-columns:minmax(0,1fr); } }
-html[data-size="xlarge"] li.cond { grid-template-columns:minmax(0,1fr); }
 @media (prefers-reduced-motion: reduce) { * { transition:none !important; animation:none !important; } }

@@ -214,23 +214,21 @@ async function saveSettings(thenTest) {
 
 // ---------------------------------------------------------------- display options and events
 function pref(name, value) { try { if (value === undefined) return localStorage.getItem(name); localStorage.setItem(name, value); } catch (_) { /* storage blocked */ } return null; }
-// Text size: Smaller 14px, Normal 17px, Larger 20px (the starting size), Largest 26px. The names moved up one notch (the size once
-// called Normal is now Larger), so the choice is kept under a new key and an earlier choice is carried over to the size it showed.
-const SIZES = ["small", "normal", "large", "xlarge"], SIZE_KEY = "ac-size-v2", OLD_SIZE_TO_NEW = {small: "normal", normal: "large", large: "xlarge", xlarge: "xlarge"};
-function savedSize() {
-  const now = pref(SIZE_KEY);
-  if (SIZES.indexOf(now) >= 0) return now;
-  return OLD_SIZE_TO_NEW[pref("ac-size")] || "large";
-}
-function setSize(v) { document.documentElement.dataset.size = v; document.querySelectorAll("#sizes button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.size === v))); pref(SIZE_KEY, v); }
-function setBg(v) { document.documentElement.dataset.bg = v; document.querySelectorAll("#backgrounds button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.bg === v))); pref("ac-bg", v); }
-function setTheme(v) { document.documentElement.dataset.theme = v; document.querySelectorAll("#themes button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.theme === v))); pref("ac-theme", v); }
+// Display choices. The page starts with Normal text (14px), light colors and the market background; Larger text is 17px. What a person
+// picks last is what they get next time. Nothing is stored until they pick, so a starting choice can still change later. The setX
+// functions only show a choice; the click handler below also remembers it.
+const SIZES = ["normal", "large"], SIZE_KEY = "ac-text-size";
+function savedSize() { const v = pref(SIZE_KEY); return SIZES.indexOf(v) >= 0 ? v : "normal"; }
+function forgetOldSizes() { ["ac-size", "ac-size-v2"].forEach(k => { try { localStorage.removeItem(k); } catch (_) { /* storage blocked */ } }); }   // earlier versions' four sizes
+function setSize(v) { document.documentElement.dataset.size = v; document.querySelectorAll("#sizes button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.size === v))); }
+function setBg(v) { document.documentElement.dataset.bg = v; document.querySelectorAll("#backgrounds button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.bg === v))); }
+function setTheme(v) { document.documentElement.dataset.theme = v; document.querySelectorAll("#themes button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.theme === v))); }
 
 document.addEventListener("click", e => {
   const t = e.target.closest("button"); if (!t) return;
-  if (t.dataset.size) setSize(t.dataset.size);
-  if (t.dataset.theme) setTheme(t.dataset.theme);
-  if (t.dataset.bg) setBg(t.dataset.bg);
+  if (t.dataset.size) { setSize(t.dataset.size); pref(SIZE_KEY, t.dataset.size); }
+  if (t.dataset.theme) { setTheme(t.dataset.theme); pref("ac-theme", t.dataset.theme); }
+  if (t.dataset.bg) { setBg(t.dataset.bg); pref("ac-bg", t.dataset.bg); }
   if (t.dataset.test) runChecks([t.dataset.test]);
   if (t.dataset.fix) { $("configure").open = true; const f = $(t.dataset.fix); if (f && !f.closest("[hidden]")) { f.scrollIntoView({block: "center"}); f.focus(); } }
 });
@@ -244,7 +242,7 @@ $("config-form").addEventListener("submit", e => { e.preventDefault(); saveSetti
 $("save-test").addEventListener("click", () => saveSettings(true));
 
 (async function init() {
-  setSize(savedSize()); setTheme(pref("ac-theme") || "light"); setBg(pref("ac-bg") || "market");
+  forgetOldSizes(); setSize(savedSize()); setTheme(pref("ac-theme") || "light"); setBg(pref("ac-bg") || "market");
   try { state = await api("/api/state"); fillForm(); }
   catch (e) { $("summary").innerHTML = `<p class="big">Could not start</p><p>${esc(e.message)}</p>`; return; }
   const ready = await runChecks(null);
