@@ -10,6 +10,7 @@ from typing import Any
 import tradingagents
 from tradingagents.agents.context import build_instrument_context, resolve_instrument_identity
 from tradingagents.agents.rating import run_rating
+from tradingagents.agents.structured import fallback_counts, reset_fallback_counts
 from tradingagents.dataflows.config import run_config, run_config_context, set_config
 from tradingagents.dataflows.date_window import get_current_date, is_historical
 from tradingagents.dataflows.symbols import safe_ticker_component
@@ -298,6 +299,7 @@ class TradingAgentsGraph:
         and loads them alongside the analysts (see ``_memory_step``).
         """
         trade_date = _validate_trade_date(trade_date)
+        reset_fallback_counts()   # the count in this run's state log covers this run only
         return self.propagator.create_initial_state(
             company_name,
             trade_date,
@@ -462,6 +464,7 @@ class TradingAgentsGraph:
             "investment_plan": final_state["investment_plan"],
             "final_trade_decision": final_state["final_trade_decision"],
             "final_rating": run_rating(final_state),
+            "structured_fallbacks": fallback_counts(),
             "run_settings": self.run_settings(),
         }
 

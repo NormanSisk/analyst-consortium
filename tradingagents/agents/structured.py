@@ -19,6 +19,8 @@ all three agents log the same warnings when fallback fires.
 from __future__ import annotations
 
 import logging
+import threading
+from collections import Counter
 from collections.abc import Callable
 from typing import Any, TypeVar
 
@@ -27,6 +29,39 @@ from pydantic import BaseModel
 logger = logging.getLogger(__name__)
 
 T = TypeVar("T", bound=BaseModel)
+
+# A local addition: how often each agent's structured call worked and how often it had to be retried as
+# plain text. The retry is silent by design, so without a count nobody can tell whether it is rare or routine.
+# Counts are per process; the graph resets them when a run starts and writes them into the run's state log.
+_counts_lock = threading.Lock()
+_calls: Counter = Counter()
+_fallbacks: Counter = Counter()
+
+
+def reset_fallback_counts() -> None:
+    """Start a fresh count (the graph calls this at the start of a run)."""
+    with _counts_lock:
+        _calls.clear()
+        _fallbacks.clear()
+
+
+def fallback_counts() -> dict[str, dict[str, int]]:
+    """``{agent: {"calls": n, "fallbacks": m}}`` for every agent that made a structured call since the reset."""
+    with _counts_lock:
+        return {name: {"calls": _calls[name], "fallbacks": _fallbacks[name]} for name in sorted(_calls)}
+
+
+def fallback_summary(counts: dict[str, dict[str, int]] | None = None) -> str:
+    """One plain sentence on the counts, e.g. "Structured output fell back to plain text 2 times in 31 calls (Research Manager 2)."."""
+    counts = fallback_counts() if counts is None else counts
+    calls = sum(c["calls"] for c in counts.values())
+    fell = {name: c["fallbacks"] for name, c in counts.items() if c["fallbacks"]}
+    if not calls:
+        return "No structured-output calls were made."
+    if not fell:
+        return f"Structured output worked on all {calls} calls."
+    where = ", ".join(f"{name} {n}" for name, n in fell.items())
+    return f"Structured output fell back to plain text {sum(fell.values())} times in {calls} calls ({where})."
 
 # Schema-only structured output binds exactly one tool (the schema itself), so a
 # model that reaches for a search tool emits an unknown tool call and the whole
@@ -65,6 +100,8 @@ def invoke_structured(structured_llm: Any | None, prompt: Any, agent_name: str) 
     """
     if structured_llm is None:
         return None
+    with _counts_lock:
+        _calls[agent_name] += 1
     try:
         result = structured_llm.invoke(prompt)
         if result is None:
@@ -74,6 +111,8 @@ def invoke_structured(structured_llm: Any | None, prompt: Any, agent_name: str) 
             raise ValueError("structured output returned no parsed result")
         return result
     except Exception as exc:
+        with _counts_lock:
+            _fallbacks[agent_name] += 1
         logger.warning(
             "%s: structured-output invocation failed (%s); retrying once as free text",
             agent_name, exc,
