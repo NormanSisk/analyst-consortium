@@ -222,5 +222,22 @@ def doctor(
     raise typer.Exit(code=0 if report.ready else 1)
 
 
+@app.command()
+def ui(
+    port: Annotated[int, typer.Option("--port", help="Port to listen on (the next free one is used if it is busy)")] = 8765,
+    no_browser: Annotated[bool, typer.Option("--no-browser", help="Do not open the page in your browser")] = False,
+):
+    """Open the setup screen in your browser: check the setup, set the AI connection and keys.
+
+    It listens on this computer only. Needs the extra libraries: pip install "tradingagents[ui]"
+    """
+    try:
+        from tradingagents.ui.server import run_server
+    except ImportError:
+        typer.echo('The setup screen needs two extra libraries. Install them with:  pip install "tradingagents[ui]"', err=True)
+        raise typer.Exit(code=1) from None
+    run_server(port=port, open_browser=not no_browser)
+
+
 if __name__ == "__main__":
     app()

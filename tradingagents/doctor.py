@@ -532,6 +532,9 @@ def _simple_probe(name: str, url: str, params: Mapping[str, str] | None = None, 
             return _network_failure(exc, name)
         if reply.status == 200:
             return _out(OK, f"{name} answers (no key needed).")
+        if reply.status == 429:
+            return _out(NOT_WORKING, f"{name} is limiting requests right now (HTTP 429), often because the checks were run several times in a few minutes.",
+                        "Wait a few minutes and check again; reports simply leave this source out meanwhile.")
         return _out(NOT_WORKING, f"{name} answered HTTP {reply.status}.",
                     "It may be blocking automated requests or be down; that part of the report will rely on other sources.")
     return check
@@ -676,15 +679,15 @@ def _run_one(ctx: Context, check: Check) -> Result:
 
 
 def run_doctor(*, offline: bool = False, live_ai: bool = True, groups: list[str] | None = None,
-               ctx: Context | None = None) -> Report:
-    """Run the checks and return the report. Pass ``ctx`` to test with fakes."""
+               ids: list[str] | None = None, ctx: Context | None = None) -> Report:
+    """Run the checks and return the report. ``groups`` and ``ids`` pick parts; pass ``ctx`` to test with fakes."""
     if ctx is None:
         from dotenv import find_dotenv
 
         from tradingagents.default_config import build_default_config
         ctx = Context(env=dict(os.environ), config=build_default_config(), network=not offline, live_ai=live_ai and not offline,
                       dotenv_path=find_dotenv(usecwd=True) or None)
-    checks = [c for c in build_checks(ctx) if not groups or c.group in groups]
+    checks = [c for c in build_checks(ctx) if (not groups or c.group in groups) and (not ids or c.id in ids)]
     with ThreadPoolExecutor(max_workers=8) as pool:
         results = list(pool.map(lambda c: _run_one(ctx, c), checks))
     counts = {s: sum(1 for r in results if r.status == s) for s in LABEL}

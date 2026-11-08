@@ -41,6 +41,11 @@ dev = [
 bedrock = [
     "langchain-aws>=1.7.9",
 ]
+# The local setup screen (`tradingagents ui`): a small web server that listens only on this computer.
+ui = [
+    "fastapi>=0.115",
+    "uvicorn>=0.30",
+]
 
 [project.scripts]
 tradingagents = "cli.main:app"
@@ -53,7 +58,7 @@ include = ["tradingagents*", "cli*"]
 
 [tool.setuptools.package-data]
 cli = ["static/*"]
-tradingagents = ["assets/*.svg"]
+tradingagents = ["assets/*.svg", "ui/static/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
