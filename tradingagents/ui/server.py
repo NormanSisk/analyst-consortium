@@ -84,7 +84,7 @@ def build_state(dotenv_path: Path | None = None) -> dict:
 
 
 def create_app(token: str, dotenv_path: Path | None = None, port: int | None = None) -> FastAPI:
-    app = FastAPI(title="Analyst Council setup", docs_url=None, redoc_url=None, openapi_url=None)
+    app = FastAPI(title="Analyst Consortium setup", docs_url=None, redoc_url=None, openapi_url=None)
     app.state.doctor_lock = asyncio.Lock()
 
     @app.middleware("http")
@@ -149,7 +149,7 @@ def run_server(port: int | None = None, open_browser: bool = True, dotenv_path: 
     port = find_free_port(port or DEFAULT_PORT)
     app = create_app(secrets.token_urlsafe(24), dotenv_path, port)
     url = f"http://{HOST}:{port}/"
-    print(f"Analyst Council setup screen: {url}\nPress Ctrl+C to stop. It answers only on this computer.")
+    print(f"Analyst Consortium setup screen: {url}\nPress Ctrl+C to stop. It answers only on this computer.")
     if open_browser:
         threading.Timer(1.0, lambda: webbrowser.open(url)).start()
     uvicorn.run(app, host=HOST, port=port, log_level="warning", access_log=False)

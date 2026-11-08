@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Analyst Council - Setup check (design mock)</title>
+<title>Analyst Consortium - Setup check (design mock)</title>
 <style>
 /* Colour tokens. Every text/background pair below is checked by a script to be at least 7:1 (WCAG AAA). */
 :root, [data-theme="light"] {
@@ -98,8 +98,8 @@ footer { margin-top:2rem; border-top:var(--border-w) solid var(--line); padding-
 <div class="mock" role="note">DESIGN MOCK for checking readability. Nothing on this page is real, saved, or sent anywhere.</div>
 <div class="wrap">
   <header>
-    <h1>Analyst Council: setup check</h1>
-    <p class="sub">Plain-words status of your AI connections, data sources and settings. Nothing here places a trade: Analyst Council only reads data and writes reports.</p>
+    <h1>Analyst Consortium: setup check</h1>
+    <p class="sub">Plain-words status of your AI connections, data sources and settings. Nothing here places a trade: Analyst Consortium only reads data and writes reports.</p>
   </header>
 
   <div class="tools" role="group" aria-label="Display and demo controls">
@@ -184,7 +184,7 @@ footer { margin-top:2rem; border-top:var(--border-w) solid var(--line); padding-
   </main>
 
   <footer>
-    <p><strong>Not financial advice.</strong> Analyst Council is a research tool. Its ratings are the opinion of AI models working from public data and can be wrong. It never places orders.</p>
+    <p><strong>Not financial advice.</strong> Analyst Consortium is a research tool. Its ratings are the opinion of AI models working from public data and can be wrong. It never places orders.</p>
     <p class="sub">Built on <a href="https://github.com/TauricResearch/TradingAgents">TradingAgents</a> by Tauric Research (Apache-2.0).</p>
   </footer>
 </div>
@@ -196,7 +196,7 @@ const SYMBOL = {ok:"✓", needs_setup:"!", not_working:"✕", off:"○", skipped
 
 // The healthy picture is the doctor's real output on the author's machine, shortened.
 const HEALTHY = [
- {id:"env.python", group:"environment", title:"Python and the package", status:"ok", required:true, detail:"Python 3.13 on Windows 11; Analyst Council 1.0.0 (mock version)."},
+ {id:"env.python", group:"environment", title:"Python and the package", status:"ok", required:true, detail:"Python 3.13 on Windows 11; Analyst Consortium 1.0.0 (mock version)."},
  {id:"env.folders", group:"environment", title:"Folders the app writes to", status:"ok", required:true, detail:"The results, cache and memory-log folders can be written (770 GB free)."},
  {id:"env.dotenv", group:"environment", title:".env settings file", status:"ok", detail:"A .env file was found (its contents are not read or shown here)."},
  {id:"env.network", group:"environment", title:"Internet and secure connections", status:"ok", required:true, detail:"The internet answers and certificates verify."},
