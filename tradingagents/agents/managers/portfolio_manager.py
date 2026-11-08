@@ -39,6 +39,9 @@ def create_portfolio_manager(llm):
             if past_context
             else ""
         )
+        # A local addition: how the research panel's passes voted, so a borderline call is read as one.
+        panel_summary = (state.get("research_panel") or {}).get("summary")
+        panel_line = f"- Research panel: {panel_summary}\n" if panel_summary else ""
 
         prompt = f"""As the Portfolio Manager, synthesize the risk analysts' debate and deliver the final trading decision.
 
@@ -58,7 +61,7 @@ def create_portfolio_manager(llm):
 **Context:**
 - Research Manager's investment plan: **{research_plan}**
 - Trader's transaction proposal: **{trader_plan}**
-{lessons_line}
+{panel_line}{lessons_line}
 **Risk Analysts Debate History:**
 {history}
 

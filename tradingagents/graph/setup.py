@@ -25,6 +25,7 @@ from tradingagents.agents.state import AgentState
 
 from .analyst_execution import build_analyst_execution_plan
 from .conditional_logic import ConditionalLogic
+from .research_panel import create_research_panel
 
 logger = logging.getLogger(__name__)
 
@@ -99,12 +100,18 @@ class GraphSetup:
         deep_thinking_llm: Any,
         conditional_logic: ConditionalLogic,
         max_tool_rounds: int,
+        research_passes: int = 1,
     ):
-        """Initialize with required components."""
+        """Initialize with required components.
+
+        ``research_passes`` above 1 swaps the Bull -> Bear -> Research Manager chain for one Research Panel
+        node that runs that many complete debates side by side and passes on the median (see research_panel).
+        """
         self.quick_thinking_llm = quick_thinking_llm
         self.deep_thinking_llm = deep_thinking_llm
         self.conditional_logic = conditional_logic
         self.max_tool_rounds = max_tool_rounds
+        self.research_passes = max(1, int(research_passes))
 
     def setup_graph(
         self, selected_analysts=("market", "social", "news", "fundamentals"), memory_node=None
@@ -145,9 +152,15 @@ class GraphSetup:
             workflow.add_node(spec.agent_node,
                               _analyst_graph(spec, analyst_factories[spec.key](), self.max_tool_rounds))
 
-        workflow.add_node("Bull Researcher", bull_researcher_node)
-        workflow.add_node("Bear Researcher", bear_researcher_node)
-        workflow.add_node("Research Manager", research_manager_node)
+        panel = self.research_passes > 1
+        if panel:
+            workflow.add_node("Research Panel", create_research_panel(
+                bull_researcher_node, bear_researcher_node, research_manager_node,
+                self.conditional_logic, self.research_passes))
+        else:
+            workflow.add_node("Bull Researcher", bull_researcher_node)
+            workflow.add_node("Bear Researcher", bear_researcher_node)
+            workflow.add_node("Research Manager", research_manager_node)
         workflow.add_node("Trader", trader_node)
         workflow.add_node("Aggressive Analyst", aggressive_analyst)
         workflow.add_node("Neutral Analyst", neutral_analyst)
@@ -163,16 +176,19 @@ class GraphSetup:
             first_steps.append("Memory Log")
         for node in first_steps:
             workflow.add_edge(START, node)
-        workflow.add_edge(first_steps, "Bull Researcher")
+        workflow.add_edge(first_steps, "Research Panel" if panel else "Bull Researcher")
 
-        # Both research-debate edges share the complete DEBATE_PATH_MAP (#1088).
-        for debate_node in ("Bull Researcher", "Bear Researcher"):
-            workflow.add_conditional_edges(
-                debate_node,
-                self.conditional_logic.should_continue_debate,
-                DEBATE_PATH_MAP,
-            )
-        workflow.add_edge("Research Manager", "Trader")
+        if panel:
+            workflow.add_edge("Research Panel", "Trader")
+        else:
+            # Both research-debate edges share the complete DEBATE_PATH_MAP (#1088).
+            for debate_node in ("Bull Researcher", "Bear Researcher"):
+                workflow.add_conditional_edges(
+                    debate_node,
+                    self.conditional_logic.should_continue_debate,
+                    DEBATE_PATH_MAP,
+                )
+            workflow.add_edge("Research Manager", "Trader")
         workflow.add_edge("Trader", "Aggressive Analyst")
         # All three risk edges share the complete RISK_ANALYSIS_PATH_MAP (#1088).
         for risk_node in ("Aggressive Analyst", "Conservative Analyst", "Neutral Analyst"):

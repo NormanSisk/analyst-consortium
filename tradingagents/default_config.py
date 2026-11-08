@@ -19,6 +19,7 @@ _ENV_OVERRIDES = {
     "TRADINGAGENTS_OUTPUT_LANGUAGE":      "output_language",
     "TRADINGAGENTS_MAX_DEBATE_ROUNDS":    "max_debate_rounds",
     "TRADINGAGENTS_MAX_RISK_ROUNDS":      "max_risk_discuss_rounds",
+    "TRADINGAGENTS_RESEARCH_PASSES":      "research_passes",
     "TRADINGAGENTS_MAX_TOOL_ROUNDS":      "max_tool_rounds",
     "TRADINGAGENTS_CHECKPOINT_ENABLED":   "checkpoint_enabled",
     "TRADINGAGENTS_BENCHMARK_TICKER":     "benchmark_ticker",
@@ -132,6 +133,11 @@ def build_default_config() -> dict:
         # Debate and discussion settings
         "max_debate_rounds": 1,
         "max_risk_discuss_rounds": 1,
+        # A local addition. How many independent passes of the research debate (bull, bear, Research Manager)
+        # run side by side; the median rating goes on and the report says how many passes agreed. One pass
+        # is the original behaviour. On borderline stocks a single pass flips between neighbouring ratings
+        # about as often as a coin; an odd number (3 or 5) gives a well-defined median.
+        "research_passes": 5,
         "max_recur_limit": 100,
         # Rounds of tool calls an analyst may make before it is asked for its report.
         "max_tool_rounds": 20,

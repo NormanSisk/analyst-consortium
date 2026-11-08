@@ -153,7 +153,8 @@ def test_a_full_run_reaches_a_logged_decision(tmp_path, monkeypatch, offline, st
 @pytest.mark.unit
 def test_an_interrupted_run_resumes_from_its_checkpoint(tmp_path, monkeypatch, offline):
     model = ScriptedModel(fail_at=12)            # past the analysts, before the decision
-    graph = _graph(tmp_path, monkeypatch, model, checkpoint_enabled=True)
+    # One research pass: the call count below assumes a single debate (a panel pass that fails is tolerated).
+    graph = _graph(tmp_path, monkeypatch, model, checkpoint_enabled=True, research_passes=1)
     with pytest.raises(RuntimeError, match="provider unavailable"):
         graph.propagate("NVDA", TRADE_DATE)
     calls_before = len(model.calls)
@@ -163,9 +164,38 @@ def test_an_interrupted_run_resumes_from_its_checkpoint(tmp_path, monkeypatch, o
     assert signal == "Overweight"
     resumed_calls = len(model.calls) - calls_before
     full_run = ScriptedModel()
-    _graph(tmp_path / "fresh", monkeypatch, full_run).propagate("NVDA", TRADE_DATE)
+    _graph(tmp_path / "fresh", monkeypatch, full_run, research_passes=1).propagate("NVDA", TRADE_DATE)
     # The resumed run makes only the calls the interrupted one had not completed.
     assert resumed_calls == len(full_run.calls) - (model.fail_at - 1)
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("structured", [False, True], ids=["free-text", "structured"])
+def test_the_default_run_votes_five_research_passes_and_logs_the_vote(tmp_path, monkeypatch, offline, structured):
+    import json
+    graph = _graph(tmp_path, monkeypatch, ScriptedModel(structured=structured))
+
+    state, signal = graph.propagate("NVDA", TRADE_DATE)
+
+    panel = state["research_panel"]
+    assert panel["passes"] == 5 and panel["requested"] == 5 and panel["median"] == "Overweight"
+    assert panel["agreement"] == 1.0 and "Strong agreement." in panel["summary"]
+    assert state["investment_plan"].strip() and state["investment_debate_state"]["history"].strip()
+    log = json.loads(next(tmp_path.glob("results/NVDA/TradingAgentsStrategy_logs/*.json")).read_text(encoding="utf-8"))
+    assert log["research_panel"]["median"] == "Overweight"
+    assert log["run_settings"]["research_passes"] == 5
+    if structured:   # one structured call per pass, none of them retried
+        assert log["structured_fallbacks"]["Research Manager"] == {"calls": 5, "fallbacks": 0}
+
+
+@pytest.mark.unit
+def test_one_research_pass_is_the_original_chain_with_no_panel(tmp_path, monkeypatch, offline):
+    graph = _graph(tmp_path, monkeypatch, ScriptedModel(), research_passes=1)
+
+    state, signal = graph.propagate("NVDA", TRADE_DATE)
+
+    assert signal == "Overweight" and not state.get("research_panel")
+    assert "Bull Researcher" in graph.graph.get_graph().nodes and "Research Panel" not in graph.graph.get_graph().nodes
 
 
 @pytest.mark.unit

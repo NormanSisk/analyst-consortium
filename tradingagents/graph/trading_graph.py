@@ -99,6 +99,7 @@ class TradingAgentsGraph:
             self.deep_thinking_llm,
             self.conditional_logic,
             max_tool_rounds,
+            research_passes=int(self.config.get("research_passes") or 1),
         )
 
         self.propagator = Propagator(
@@ -270,6 +271,7 @@ class TradingAgentsGraph:
             "analysts": list(self.selected_analysts),
             "max_debate_rounds": cfg.get("max_debate_rounds"),
             "max_risk_discuss_rounds": cfg.get("max_risk_discuss_rounds"),
+            "research_passes": cfg.get("research_passes"),
             "output_language": cfg.get("output_language"),
             "data_vendors": dict(cfg.get("data_vendors") or {}),
             "tool_vendors": dict(cfg.get("tool_vendors") or {}),
@@ -464,6 +466,7 @@ class TradingAgentsGraph:
             "investment_plan": final_state["investment_plan"],
             "final_trade_decision": final_state["final_trade_decision"],
             "final_rating": run_rating(final_state),
+            "research_panel": final_state.get("research_panel"),
             "structured_fallbacks": fallback_counts(),
             "run_settings": self.run_settings(),
         }
