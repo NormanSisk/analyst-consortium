@@ -185,7 +185,7 @@ def test_the_default_run_votes_five_research_passes_and_logs_the_vote(tmp_path, 
     assert log["research_panel"]["median"] == "Overweight"
     assert log["run_settings"]["research_passes"] == 5
     if structured:   # one structured call per pass, none of them retried
-        assert log["structured_fallbacks"]["Research Manager"] == {"calls": 5, "fallbacks": 0}
+        assert log["structured_fallbacks"]["Research Manager"] == {"calls": 5, "retries": 0, "fallbacks": 0}
 
 
 @pytest.mark.unit
