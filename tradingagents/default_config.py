@@ -135,7 +135,7 @@ def build_default_config() -> dict:
         "max_risk_discuss_rounds": 1,
         # A local addition. How many independent passes of the research debate (bull, bear, Research Manager)
         # run side by side; the median rating goes on and the report says how many passes agreed. One pass
-        # is the original behaviour. On borderline stocks a single pass flips between neighbouring ratings
+        # is the original behavior. On borderline stocks a single pass flips between neighboring ratings
         # about as often as a coin; an odd number (3 or 5) gives a well-defined median.
         "research_passes": 5,
         "max_recur_limit": 100,

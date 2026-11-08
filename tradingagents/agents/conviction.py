@@ -1,4 +1,4 @@
-"""Reading the conviction score: how far a call sits from the line to its neighbouring rating.
+"""Reading the conviction score: how far a call sits from the line to its neighboring rating.
 
 A rating owns a band of the 0-100 score. A score near the edge of its band is a call that a second
 run could put on the other side, and the score says so; this turns that into a plain sentence at the
@@ -12,7 +12,7 @@ import re
 
 from tradingagents.agents.schemas import SCORE_BANDS
 
-# Within this many points of the line to the neighbouring rating, a single run is not enough. Runs of the
+# Within this many points of the line to the neighboring rating, a single run is not enough. Runs of the
 # same analysis moved by about 1 to 2 points once the inputs were consistent, and by up to 13 before, so 5
 # is a cautious starting point to be tightened as more runs are seen. TRADINGAGENTS_BORDERLINE_POINTS
 # overrides it (a wider margin offers extra runs more often; it is also how the extra-runs path is tested).
@@ -104,13 +104,13 @@ def borderline_note(rating: str, decision_text: str | None) -> tuple[str, bool] 
         low, high = SCORE_BANDS[rating]
         return (f"The score ({score}) lies outside the {rating} band ({low} to {high}), so the rating and the score "
                 "disagree. Trust the rating, and run the 3-run spread if it matters.", True)
-    distance, neighbour = found
+    distance, neighbor = found
     low, high = SCORE_BANDS[rating]
-    line = f"{low - 1}/{low}" if SCORE_BANDS[neighbour][0] < low else f"{high}/{high + 1}"
+    line = f"{low - 1}/{low}" if SCORE_BANDS[neighbor][0] < low else f"{high}/{high + 1}"
     margin = borderline_points()
     if distance <= margin:
         return (f"Borderline call: the score ({score}) is {distance:.1f} points from the line between {rating} and "
-                f"{neighbour} ({line}). A single run can land on either side, so run the 3-run spread before relying "
+                f"{neighbor} ({line}). A single run can land on either side, so run the 3-run spread before relying "
                 "on this rating.", True)
-    return (f"Not borderline: the score ({score}) is {distance:.1f} points from the nearest line ({neighbour}, {line}), "
+    return (f"Not borderline: the score ({score}) is {distance:.1f} points from the nearest line ({neighbor}, {line}), "
             f"more than {margin:g} points, so one run is a reasonable first look.", False)

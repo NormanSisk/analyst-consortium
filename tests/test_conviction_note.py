@@ -30,9 +30,9 @@ class TestNearestLine:
         ("Buy", 82, (2.5, "Overweight")),          # Buy has no line above it
         ("Overweight", 70, (9.5, "Buy")),
     ])
-    def test_the_distance_and_the_neighbour(self, rating, score, expected):
-        distance, neighbour = nearest_line(rating, score)
-        assert (round(distance, 1), neighbour) == expected
+    def test_the_distance_and_the_neighbor(self, rating, score, expected):
+        distance, neighbor = nearest_line(rating, score)
+        assert (round(distance, 1), neighbor) == expected
 
     def test_a_score_outside_the_ratings_band_or_an_unknown_rating_gives_none(self):
         assert nearest_line("Hold", 70) is None

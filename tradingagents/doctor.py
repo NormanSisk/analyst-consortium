@@ -558,7 +558,7 @@ COST_NOTE = ("measured on Anthropic Haiku and Sonnet models: about $0.13 for one
 def check_passes(ctx: Context):
     n = int(ctx.config.get("research_passes") or 1)
     if n == 1:
-        return _out(OK, "Research passes: 1 (the original single debate). A borderline stock can flip between neighbouring ratings from run to run.")
+        return _out(OK, "Research passes: 1 (the original single debate). A borderline stock can flip between neighboring ratings from run to run.")
     note = f"Research passes: {n}. Each run debates {n} times side by side and reports the median and how many agreed; " \
            f"it costs roughly {n} times the debate stage ({COST_NOTE})."
     if n % 2 == 0:
@@ -696,7 +696,7 @@ def run_doctor(*, offline: bool = False, live_ai: bool = True, groups: list[str]
 
 
 def format_text(report: Report) -> str:
-    """The report as plain text: a status word in brackets at the start of every line, no colour needed."""
+    """The report as plain text: a status word in brackets at the start of every line, no color needed."""
     c = report.counts
     lines = [f"TradingAgents doctor  ({report.generated})",
              "Plain-words status of your setup. Nothing is changed and no key is shown.", ""]

@@ -10,7 +10,7 @@ Replaces the Interactive Brokers statistics, which needed a browser sign-in that
   report when one falls inside it).
 
 Yahoo has no history of implied volatility, so IBKR's implied-volatility percentile is replaced by a proxy that is
-labelled as one: where today's implied volatility sits among the past year's 30-day realized readings.
+labeled as one: where today's implied volatility sits among the past year's 30-day realized readings.
 """
 
 from datetime import timedelta

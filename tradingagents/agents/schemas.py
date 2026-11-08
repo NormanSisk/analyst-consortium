@@ -304,7 +304,7 @@ class PortfolioDecision(BaseModel):
             "A whole number from 0 to 100 placing the call more finely than the rating. The rating owns a band: "
             "Sell 0-20, Underweight 21-40, Hold 41-59, Overweight 60-79, Buy 80-100, and the score must lie inside "
             "the band of the rating chosen. Within the band, a score near its edge means the call is close to the "
-            "neighbouring rating; say in the thesis what would tip it over."
+            "neighboring rating; say in the thesis what would tip it over."
         ),
     )
 

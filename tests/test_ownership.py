@@ -155,7 +155,7 @@ class TestOwnership:
         lines, flags = self._section(institutions=small, funds=None)
         assert any("Tiny Capital" in line and "+100.0%" in line for line in lines) and flags == []
 
-    def test_increases_and_decreases_are_counted_and_funds_are_labelled_as_included(self):
+    def test_increases_and_decreases_are_counted_and_funds_are_labeled_as_included(self):
         text = "\n".join(self._section()[0])
         assert "Of the 4 largest institutions with a stated change, 3 show an increase and 1 a decrease" in text
         assert "does not say whether a +100% is a new position" in text

@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Analyst Consortium - Setup check (design mock)</title>
 <style>
-/* Colour tokens. Every text/background pair below is checked by a script to be at least 7:1 (WCAG AAA). */
+/* Color tokens. Every text/background pair below is checked by a script to be at least 7:1 (WCAG AAA). */
 :root, [data-theme="light"] {
   --bg:#ffffff; --panel:#f3f5f7; --text:#111111; --muted:#2b2b2b; --line:#111111; --focus:#0040c8;
   --btn-bg:#0b3d91; --btn-text:#ffffff; --btn2-bg:#ffffff; --btn2-text:#0b3d91; --link:#0b3d91;
@@ -113,7 +113,7 @@ footer { margin-top:2rem; border-top:var(--border-w) solid var(--line); padding-
       </div>
     </fieldset>
     <fieldset>
-      <legend>Colours</legend>
+      <legend>Colors</legend>
       <div class="row" id="themes">
         <button type="button" class="secondary" data-theme="light" aria-pressed="true">Light</button>
         <button type="button" class="secondary" data-theme="dark" aria-pressed="false">Dark</button>
@@ -132,9 +132,9 @@ footer { margin-top:2rem; border-top:var(--border-w) solid var(--line); padding-
     <div class="summary" id="summary" role="status" aria-live="polite"></div>
     <div class="row"><button type="button" id="recheck">Check everything again</button></div>
 
-    <section class="card" aria-labelledby="h-env"><h2 id="h-env">Your computer and folders</h2><ul class="checks" id="list-environment"></ul></section>
+    <section class="card" aria-labeledby="h-env"><h2 id="h-env">Your computer and folders</h2><ul class="checks" id="list-environment"></ul></section>
 
-    <section class="card" aria-labelledby="h-ai">
+    <section class="card" aria-labeledby="h-ai">
       <h2 id="h-ai">AI connections</h2>
       <form class="editor" id="ai-form" aria-label="Connect an AI provider">
         <div class="field">
@@ -174,13 +174,13 @@ footer { margin-top:2rem; border-top:var(--border-w) solid var(--line); padding-
       <ul class="checks" id="list-ai"></ul>
     </section>
 
-    <section class="card" aria-labelledby="h-data">
+    <section class="card" aria-labeledby="h-data">
       <h2 id="h-data">Data sources</h2>
       <p class="sub">Where the analysts get their facts. Yahoo Finance is required. Everything else is optional: each one adds a section to the reports, and a missing one is simply left out.</p>
       <ul class="checks" id="list-data"></ul>
     </section>
 
-    <section class="card" aria-labelledby="h-set"><h2 id="h-set">Your settings</h2><ul class="checks" id="list-settings"></ul></section>
+    <section class="card" aria-labeledby="h-set"><h2 id="h-set">Your settings</h2><ul class="checks" id="list-settings"></ul></section>
   </main>
 
   <footer>
@@ -301,7 +301,7 @@ document.addEventListener("change", e => {
 });
 document.getElementById("recheck").addEventListener("click", ev => simulate("env.network", ev.target));
 
-// text size and colours (remembered if the browser allows it)
+// text size and colors (remembered if the browser allows it)
 function pref(name, value) { try { if (value === undefined) return localStorage.getItem(name); localStorage.setItem(name, value); } catch (_) {} return null; }
 function setSize(v) { document.documentElement.dataset.size = v; document.querySelectorAll("#sizes button").forEach(b => b.setAttribute("aria-pressed", b.dataset.size === v)); pref("ac-size", v); }
 function setTheme(v) { document.documentElement.dataset.theme = v; document.querySelectorAll("#themes button").forEach(b => b.setAttribute("aria-pressed", b.dataset.theme === v)); pref("ac-theme", v); }
@@ -320,7 +320,7 @@ document.getElementById("provider").addEventListener("change", fillModels);
 document.getElementById("showkey").addEventListener("click", e => { const f = document.getElementById("apikey"); const show = f.type === "password";
   f.type = show ? "text" : "password"; e.target.textContent = show ? "Hide" : "Show"; e.target.setAttribute("aria-pressed", show); });
 function cost() { const n = +document.getElementById("passes").value; const usd = (0.13 + 0.0675 * (n - 1)).toFixed(2); const min = (4.5 + 0.45 * (n - 1)).toFixed(0);
-  document.getElementById("cost").textContent = `About $${usd} and ${min} minutes per analysis (measured with Anthropic Haiku and Sonnet; other providers differ). ` + (n === 1 ? "One pass can flip between neighbouring ratings on a borderline stock." : "The report shows the median and how many passes agreed."); }
+  document.getElementById("cost").textContent = `About $${usd} and ${min} minutes per analysis (measured with Anthropic Haiku and Sonnet; other providers differ). ` + (n === 1 ? "One pass can flip between neighboring ratings on a borderline stock." : "The report shows the median and how many passes agreed."); }
 document.getElementById("passes").addEventListener("change", cost);
 document.getElementById("ai-form").addEventListener("submit", e => { e.preventDefault();
   const out = document.getElementById("aiResult"), b = document.getElementById("savetest"); b.disabled = true; out.textContent = "Saving to .env and testing...";

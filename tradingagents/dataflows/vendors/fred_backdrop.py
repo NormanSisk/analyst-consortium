@@ -10,7 +10,7 @@ appetite without being asked, with the figures worked out, plus what is due in t
   WTI crude and Henry Hub natural gas for energy and utilities.
 
 Observations are read at the vintage known on the analysis date, as the macro tool does, so past runs see what was
-published then. Macro context describes the backdrop; it is the noisiest input for a single stock and is labelled so.
+published then. Macro context describes the backdrop; it is the noisiest input for a single stock and is labeled so.
 """
 
 from datetime import date, timedelta

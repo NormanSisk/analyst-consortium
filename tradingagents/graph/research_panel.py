@@ -1,6 +1,6 @@
 """Research panel: several independent passes of the research debate, the median verdict goes on (a local addition).
 
-One pass of the debate (bull, bear, Research Manager) is a single draw, and on a borderline stock neighbouring
+One pass of the debate (bull, bear, Research Manager) is a single draw, and on a borderline stock neighboring
 ratings come up about as often as a coin lands. A pass that is repeated and judged by its median is far steadier,
 and the way the passes split shows plainly when a stock is borderline.
 
