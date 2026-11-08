@@ -186,6 +186,14 @@ dl.facts div { min-width:0; }
 dl.facts dt { font-size:.85rem; font-weight:700; color:var(--muted); }
 dl.facts dd { margin:0; font-weight:700; }
 li.pick .note { margin:.4rem 0; }
+/* The scoreboard */
+#board { margin-top:1.6rem; border-top:var(--border-w) solid var(--line); padding-top:.6rem; }
+#board h4 { font-size:1.05rem; margin:1rem 0 .3rem; }
+#board h5 { font-size:1rem; margin:.8rem 0 .2rem; }
+#b-results { margin-top:.6rem; }
+.verdict { font-weight:700; border:var(--border-w) solid var(--line); border-radius:.5rem; padding:.6rem .9rem; background:var(--panel); }
+ul.outcomes { margin:.3rem 0 .6rem; padding-left:1.3rem; display:grid; gap:.4rem; }
+#board .result { min-height:0; margin:.3rem 0; }
 ul.conds { list-style:none; margin:.4rem 0 0; padding:0; display:grid; gap:.6rem; }
 li.cond { display:grid; grid-template-columns:8.5rem minmax(0,1fr); gap:.2rem .8rem; align-items:start; }
 li.cond .badge { justify-self:start; }

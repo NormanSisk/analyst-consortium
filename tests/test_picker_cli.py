@@ -153,3 +153,62 @@ class TestPickCommand:
         """The suite blocks sockets and browser windows; a run that completes proves neither was needed."""
         invoke, _, _ = pick
         assert invoke("beaten-down", "--no-log").exit_code == 0
+
+
+def write_record(folder, symbols=("GOOD", "BAD"), sessions_ago=40, recipe="beaten-down"):
+    """A picks record whose stocks were shown some sessions before the last day of the made-up market."""
+    from tradingagents.picker import ledger
+
+    folder.mkdir(parents=True, exist_ok=True)
+    path = folder / "picks.csv"
+    with open(path, "w", newline="", encoding="utf-8") as handle:
+        out = csv.writer(handle)
+        out.writerow(ledger.COLUMNS)
+        for rank, symbol in enumerate(symbols, 1):
+            out.writerow(["2026-11-08T10:00:00+00:00", w.INDEX[-1 - sessions_ago].date().isoformat(), recipe, rank, symbol, f"{symbol} Corp",
+                          "100", 5, "a:PASS", "0.5", "-30", "0.8", "0.7", "12", "{}"])
+    return path
+
+
+@pytest.mark.unit
+class TestScoreboardCommand:
+    def test_the_help_lists_it(self):
+        assert "scoreboard" in CliRunner().invoke(cli_main.app, ["pick", "--help"]).output
+
+    def test_nothing_recorded_is_said_plainly_and_needs_no_download(self, pick):
+        invoke, provider, _ = pick
+        result = invoke("scoreboard")
+        assert result.exit_code == 0 and "Nothing is recorded yet" in result.stdout and provider.closes_calls == []
+
+    def test_the_record_is_measured_against_the_market(self, pick):
+        invoke, provider, tmp_path = pick
+        write_record(tmp_path / "picker")
+        result = invoke("scoreboard")
+        assert result.exit_code == 0
+        assert "HOW THE RECORDED PICKS DID" in result.stdout and "BEATEN-DOWN QUALITY: 2 stocks in 1 list" in result.stdout
+        assert "not a forecast and not advice" in result.stdout
+        assert "Downloading prices for 2 recorded stocks" in result.stderr and "Downloading" not in result.stdout
+        assert len(provider.closes_calls) == 1
+
+    def test_json_and_csv_outputs(self, pick, tmp_path):
+        invoke, _, _ = pick
+        log = write_record(tmp_path / "elsewhere", symbols=("GOOD",), sessions_ago=70)
+        out = tmp_path / "board.csv"
+        result = invoke("scoreboard", "--log", str(log), "--json", "--csv", str(out))
+        assert result.exit_code == 0
+        data = json.loads(result.stdout)
+        assert data["picks"][0]["symbol"] == "GOOD" and data["picks"][0]["horizons"]["63"] is not None
+        rows = list(csv.DictReader(open(out, newline="", encoding="utf-8-sig")))
+        assert len(rows) == 1 and rows[0]["symbol"] == "GOOD" and rows[0]["recipe"] == "beaten-down" and "Saved 1 stocks" in result.stderr
+
+    def test_a_missing_record_file_is_not_an_error(self, pick, tmp_path):
+        invoke, _, _ = pick
+        result = invoke("scoreboard", "--log", str(tmp_path / "nope.csv"))
+        assert result.exit_code == 0 and "Nothing is recorded yet" in result.stdout
+
+    def test_a_data_problem_ends_with_a_message_and_exit_code_1(self, pick):
+        invoke, provider, tmp_path = pick
+        write_record(tmp_path / "picker")
+        del provider._closes["^GSPC"]
+        result = invoke("scoreboard")
+        assert result.exit_code == 1 and "could not get S&P 500 prices" in result.stderr

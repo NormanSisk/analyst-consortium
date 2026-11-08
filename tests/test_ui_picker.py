@@ -62,7 +62,18 @@ class TestOptions:
         assert o["busy"] is False and o["latest"] is None and o["ledger_path"].endswith("picks.csv")
 
     def test_a_manager_without_a_folder_has_no_log_to_name(self):
-        assert pj.PickerManager(None, w.pullback_world()).options()["ledger_path"] is None
+        m = pj.PickerManager(None, w.pullback_world())
+        assert m.options()["ledger_path"] is None and m.options()["log"] == {"path": None, "stocks": 0, "lists": 0, "first": None, "last": None}
+
+    def test_the_options_say_what_the_picks_log_holds(self, tmp_path):
+        from tests.test_picker_cli import write_record
+
+        m = manager(tmp_path)
+        assert m.options()["log"]["stocks"] == 0 and m.options()["log"]["first"] is None
+        write_record(tmp_path / "picker", ("GOOD", "BAD"), sessions_ago=40)
+        write_record(tmp_path / "picker", ("GOOD",), sessions_ago=10)                  # rewrites the file: one list of one stock
+        log = m.options()["log"]
+        assert log["stocks"] == 1 and log["lists"] == 1 and log["first"] == log["last"] and log["path"].endswith("picks.csv")
 
 
 @pytest.mark.unit
@@ -286,13 +297,83 @@ class TestEndpoints:
         assert c.get("/api/picker/options", headers=HEADERS).status_code == 200 and len(made) == 1
 
 
+@pytest.mark.unit
+class TestScoreboardEndpoints:
+    def test_both_endpoints_need_the_token(self, tmp_path):
+        c = api(tmp_path)
+        assert c.post("/api/picker/scoreboard").status_code == 401 and c.post("/api/picker/scoreboard/csv").status_code == 401
+        assert c.post("/api/picker/scoreboard", headers={**HEADERS, "Origin": "https://evil.example.com"}).status_code == 403
+
+    def test_an_empty_log_is_answered_in_words_and_needs_no_download(self, tmp_path):
+        provider = w.pullback_world()
+        c = api(tmp_path, provider)
+        body = c.post("/api/picker/scoreboard", headers=HEADERS).json()
+        assert "Nothing is recorded yet" in body["verdict"] and body["picks"] == [] and provider.closes_calls == []
+
+    def test_the_log_is_measured_and_saved_as_csv(self, tmp_path):
+        from tests.test_picker_cli import write_record
+
+        write_record(tmp_path / "picker", ("GOOD", "BAD"), sessions_ago=70)
+        c = api(tmp_path)
+        assert c.post("/api/picker/scoreboard/csv", headers=HEADERS).status_code == 404         # nothing worked out yet
+        body = c.post("/api/picker/scoreboard", headers=HEADERS).json()
+        assert [p["symbol"] for p in body["picks"]] == ["GOOD", "BAD"] and body["recipes"][0]["stats"]["63"]["n"] == 2
+        assert body["horizons"] == [5, 21, 63] and body["verdict"] and "S&P 500" in body["yardstick"]
+        csv = c.post("/api/picker/scoreboard/csv", headers=HEADERS)
+        assert csv.status_code == 200 and csv.headers["content-type"].startswith("text/csv")
+        assert "scoreboard.csv" in csv.headers["content-disposition"] and b"GOOD" in csv.content and csv.content.startswith(b"\xef\xbb\xbf")
+
+    def test_no_market_prices_is_a_502_with_a_plain_sentence(self, tmp_path):
+        from tests.test_picker_cli import write_record
+
+        write_record(tmp_path / "picker", ("GOOD",), sessions_ago=40)
+        provider = w.pullback_world()
+        del provider._closes["^GSPC"]
+        r = api(tmp_path, provider).post("/api/picker/scoreboard", headers=HEADERS)
+        assert r.status_code == 502 and "S&P 500 prices" in r.json()["detail"]
+
+    def test_an_unexpected_failure_shows_no_traceback(self, tmp_path):
+        from tests.test_picker_cli import write_record
+
+        write_record(tmp_path / "picker", ("GOOD",), sessions_ago=40)
+        provider = w.pullback_world()
+        provider.closes = lambda symbols: (_ for _ in ()).throw(KeyError("secret-internal-detail"))
+        r = api(tmp_path, provider).post("/api/picker/scoreboard", headers=HEADERS)
+        assert r.status_code == 502 and "KeyError" in r.json()["detail"] and "secret-internal-detail" not in r.text
+
+    def test_a_second_scoreboard_while_one_is_running_is_refused(self, tmp_path):
+        from tests.test_picker_cli import write_record
+
+        write_record(tmp_path / "picker", ("GOOD",), sessions_ago=40)
+        release, inside = threading.Event(), threading.Event()
+        provider = w.pullback_world()
+        real = provider.closes
+
+        def slow(symbols):
+            inside.set()
+            release.wait(5)
+            return real(symbols)
+
+        provider.closes = slow
+        c = api(tmp_path, provider)
+        first = threading.Thread(target=lambda: c.post("/api/picker/scoreboard", headers=HEADERS))
+        first.start()
+        assert inside.wait(5)
+        again = c.post("/api/picker/scoreboard", headers=HEADERS)
+        assert again.status_code == 409 and "already being worked out" in again.json()["detail"]
+        release.set()
+        first.join(10)
+
+
 # ---------------------------------------------------------------- the page's files
 STATIC = Path(server.STATIC)
 HTML = (STATIC / "index.html").read_text(encoding="utf-8")
 SCRIPT = (STATIC / "picker.js").read_text(encoding="utf-8")
+BOARD = (STATIC / "board.js").read_text(encoding="utf-8")
 HTML_IDS = set(re.findall(r'\bid="([^"]+)"', HTML))
-# ids that picker.js writes into the page itself, after a search
+# ids that the scripts write into the page themselves, after a search or a scoreboard
 MADE_BY_SCRIPT = {"f-results-h", "f-top", "f-clear", "f-send", "f-sendmsg", "f-save", "f-save-result", "f-save-error"}
+MADE_BY_BOARD = {"b-results-h", "b-save", "b-save-result", "b-save-error"}
 
 
 @pytest.mark.unit
@@ -308,6 +389,24 @@ class TestThePage:
         assert wanted - HTML_IDS - MADE_BY_SCRIPT == set()
         for made in MADE_BY_SCRIPT - {"f-results-h"}:
             assert f'id="{made}"' in SCRIPT, made
+
+    def test_the_scoreboard_script_is_in_the_page_and_every_id_it_reaches_for_exists(self):
+        assert '<script src="/static/board.js">' in HTML and HTML.index("picker.js") < HTML.index("board.js")
+        for needed in ("board", "b-h", "b-hint", "b-run", "b-status", "b-error", "b-results"):
+            assert needed in HTML_IDS, needed
+        wanted = set(re.findall(r'\$\("([a-z0-9-]+)"\)', BOARD))
+        assert wanted - HTML_IDS - MADE_BY_BOARD == set()
+        for made in MADE_BY_BOARD - {"b-results-h"}:
+            assert f'id="{made}"' in BOARD, made
+        assert '"/api/picker/scoreboard"' in BOARD and '"/api/picker/scoreboard/csv"' in BOARD and "saveFile(" in BOARD
+
+    def test_what_the_scoreboard_shows_is_escaped_and_the_script_stays_clean(self):
+        raw = re.findall(r"\$\{([a-z]\.[a-z_]+)\}", BOARD)
+        assert set(raw) <= {"p.met", "s.n", "s.beat"}                           # whole numbers the server made
+        for name in ("d.verdict", "d.yardstick", "p.symbol", "p.name", "p.shown", "b.shown", "r.label", "label"):
+            assert f"esc({name}" in BOARD, name
+        assert " style=" not in BOARD and "eval(" not in BOARD and "document.write" not in BOARD and "localStorage" not in BOARD
+        assert "X-Council-Token" not in BOARD and TOKEN not in BOARD
 
     def test_the_save_flow_is_shared_with_the_run_panel_and_its_messages_exist(self):
         runs = (STATIC / "runs.js").read_text(encoding="utf-8")

@@ -13,6 +13,7 @@ Only the data layer imports yfinance, so everything the picker downloads lives h
 from __future__ import annotations
 
 import re
+import warnings
 
 import pandas as pd
 import yfinance as yf
@@ -98,8 +99,11 @@ def fetch_closes(symbols: list[str], period: str = "14mo") -> dict[str, pd.Serie
     closes: dict[str, pd.Series] = {}
     for i in range(0, len(symbols), BATCH):
         chunk = symbols[i:i + BATCH]
-        raw = yf_retry(lambda chunk=chunk: yf.download(chunk, period=period, auto_adjust=True, progress=False,
-                                                       group_by="ticker", threads=True))
+        with warnings.catch_warnings():
+            # yfinance's own code triggers pandas "inplace keyword" deprecation notices, hundreds per download; they are not ours to fix
+            warnings.filterwarnings("ignore", message=".*inplace keyword.*")
+            raw = yf_retry(lambda chunk=chunk: yf.download(chunk, period=period, auto_adjust=True, progress=False,
+                                                           group_by="ticker", threads=True))
         if raw is None or len(raw) == 0:
             continue
         for symbol in chunk:

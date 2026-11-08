@@ -372,6 +372,27 @@ def create_app(token: str, dotenv_path: Path | None = None, port: int | None = N
             return JSONResponse({"detail": "There is no finished search to save. Run it again."}, status_code=404)
         return Response(data, media_type="text/csv; charset=utf-8", headers={"Content-Disposition": 'attachment; filename="stocks.csv"'})
 
+    @app.post("/api/picker/scoreboard")
+    async def picker_scoreboard():
+        """How the recorded picks did against the S&P 500 (a free download of prices)."""
+        from tradingagents.picker.quicklook import PickerError
+
+        try:
+            return await run_in_threadpool(searcher().scoreboard)
+        except picker_jobs.SearchBusy as exc:
+            return JSONResponse({"detail": str(exc)}, status_code=409)
+        except PickerError as exc:
+            return JSONResponse({"detail": str(exc)}, status_code=502)
+        except Exception as exc:  # noqa: BLE001 - the page gets a plain sentence, never a traceback
+            return JSONResponse({"detail": f"The scoreboard stopped unexpectedly ({type(exc).__name__}). Try again in a minute."}, status_code=502)
+
+    @app.post("/api/picker/scoreboard/csv")
+    async def picker_scoreboard_csv():
+        data = await run_in_threadpool(searcher().scoreboard_csv)
+        if data is None:
+            return JSONResponse({"detail": "Work out the scoreboard first, then save it."}, status_code=404)
+        return Response(data, media_type="text/csv; charset=utf-8", headers={"Content-Disposition": 'attachment; filename="scoreboard.csv"'})
+
     app.mount("/static", StaticFiles(directory=str(STATIC)), name="static")
     return app
 

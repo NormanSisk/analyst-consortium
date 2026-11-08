@@ -340,5 +340,32 @@ def pick_list(
         raise typer.Exit(code=1)
     _finish_pick("list", symbols, {}, top, details, csv_path, json_output, refresh, no_log, workers)
 
+
+@pick_app.command("scoreboard")
+def pick_scoreboard(
+    log_file: Annotated[Path | None, typer.Option("--log", help="The picks record to read (default: data/picker/picks.csv)")] = None,
+    csv_path: Annotated[Path | None, typer.Option("--csv", help="Also save every recorded stock with its outcomes to this CSV file")] = None,
+    json_output: Annotated[bool, typer.Option("--json", help="Print JSON instead of text, for programs")] = False,
+):
+    """How the recorded lists did: each stock's price when it was shown against its price later, and against the S&P 500
+    over the same days. Free: it only downloads prices. It is facts and counts, never advice.
+    """
+    import json as _json
+
+    from tradingagents.picker import ledger, quicklook, scoreboard
+    from tradingagents.picker.providers import YahooProvider
+
+    path = log_file or _pick_folder() / "picks.csv"
+    try:
+        board = scoreboard.build(ledger.read_picks(path), YahooProvider(), log=lambda message: typer.echo(message, err=True))
+    except quicklook.PickerError as exc:
+        typer.echo(f"Error: {exc}", err=True)
+        raise typer.Exit(code=1) from None
+    typer.echo(_json.dumps(scoreboard.to_json(board), indent=2) if json_output else scoreboard.render_text(board))
+    if csv_path:
+        csv_path.write_bytes(scoreboard.to_csv(board))
+        typer.echo(f"Saved {len(board.picks)} stocks to {csv_path}", err=True)
+
+
 if __name__ == "__main__":
     app()

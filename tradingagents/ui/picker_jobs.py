@@ -18,6 +18,7 @@ from datetime import date, datetime
 from pathlib import Path
 
 from tradingagents.picker import ledger, lists, quicklook, report
+from tradingagents.picker import scoreboard as board_tools
 from tradingagents.picker.cache import FundamentalsCache
 from tradingagents.picker.conditions import TITLES
 from tradingagents.picker.providers import Provider, YahooProvider
@@ -83,6 +84,8 @@ class PickerManager:
         self._now, self._keep, self._workers, self._run_recipe = now, keep, workers, run
         self._jobs: list[SearchJob] = []
         self._lock = threading.Lock()
+        self._board_lock = threading.Lock()
+        self._board = None                           # the last scoreboard, kept for its CSV
 
     # ---- what the page offers
     def options(self) -> dict:
@@ -91,7 +94,32 @@ class PickerManager:
         with self._lock:
             latest = self._jobs[-1].id if self._jobs else None
         return {"recipes": list(RECIPES), "settings": settings, "busy": self.busy(), "latest": latest,
-                "ledger_path": str(self.folder / "picks.csv") if self.folder else None, "max_text": MAX_TEXT}
+                "ledger_path": str(self.folder / "picks.csv") if self.folder else None, "max_text": MAX_TEXT, "log": self.log_summary()}
+
+    # ---- the picks log and how its stocks did
+    def log_summary(self) -> dict:
+        """What the picks log holds (read from the file; no download)."""
+        path = self.folder / "picks.csv" if self.folder else None
+        picks, _ = board_tools.parse_rows(ledger.read_picks(path) if path else [])
+        days = sorted({p.shown for p in picks})
+        return {"path": str(path) if path else None, "stocks": len(picks), "lists": len({(p.recipe, p.shown) for p in picks}),
+                "first": days[0].isoformat() if days else None, "last": days[-1].isoformat() if days else None}
+
+    def scoreboard(self) -> dict:
+        """Measure every recorded stock against the S&P 500 (one download of prices). SearchBusy when one is already running."""
+        if not self._board_lock.acquire(blocking=False):
+            raise SearchBusy("The scoreboard is already being worked out. Wait a moment.")
+        try:
+            path = self.folder / "picks.csv" if self.folder else None
+            board = board_tools.build(ledger.read_picks(path) if path else [], self._provider_now())
+            self._board = board
+            return board_tools.to_json(board)
+        finally:
+            self._board_lock.release()
+
+    def scoreboard_csv(self) -> bytes | None:
+        board = self._board
+        return None if board is None else board_tools.to_csv(board)
 
     def busy(self) -> bool:
         with self._lock:

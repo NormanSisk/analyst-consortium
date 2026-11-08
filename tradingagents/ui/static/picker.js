@@ -117,6 +117,7 @@ async function pollFind() {
   }
   $("f-progress").hidden = true;
   drawResults(j);
+  document.dispatchEvent(new Event("ac-search-done"));              // the scoreboard re-reads the picks log
 }
 
 // ---------------------------------------------------------------- the results

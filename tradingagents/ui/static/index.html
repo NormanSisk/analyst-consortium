@@ -95,6 +95,17 @@
       </div>
       <div id="f-results" hidden></div>
       <div class="sr-only" id="f-announce" role="status" aria-live="polite"></div>
+
+      <div id="board">
+        <h3 id="b-h">How the recorded picks did</h3>
+        <p class="hint" id="b-hint">Looking at your picks log...</p>
+        <div class="row">
+          <button type="button" class="secondary" id="b-run" disabled>Check how they did</button>
+        </div>
+        <p class="elapsed" id="b-status" role="status" aria-live="polite"></p>
+        <p class="error" id="b-error" role="alert"></p>
+        <div id="b-results" hidden></div>
+      </div>
     </section>
 
     <section class="panel" id="run" aria-labelledby="run-h">
@@ -265,5 +276,6 @@
 <script src="/static/app.js"></script>
 <script src="/static/runs.js"></script>
 <script src="/static/picker.js"></script>
+<script src="/static/board.js"></script>
 </body>
 </html>
