@@ -1,7 +1,9 @@
 import logging
 import os
+from datetime import datetime, timedelta
 
 import pandas as pd
+import pytz
 import yfinance as yf
 
 from tradingagents.dataflows.config import get_config
@@ -22,6 +24,36 @@ MAX_OHLCV_STALE_DAYS = 10
 # up today's close soon after it publishes, long enough that a day with no bar
 # at all (weekend, holiday) cannot trigger a download on every call.
 OHLCV_CACHE_TTL_SECONDS = 900
+
+
+# UTC offsets of US exchange time (EST, EDT). Only bars stamped with one are checked.
+_US_EXCHANGE_OFFSETS = (timedelta(hours=-5), timedelta(hours=-4))
+
+# Local time after which a US daily bar is treated as final: the 16:00 close plus
+# time for the vendor to settle the day's volume.
+_US_SESSION_SETTLED = (16, 15)
+
+
+def unfinished_session_date(last_bar) -> pd.Timestamp | None:
+    """The date of ``last_bar`` when it is a US daily bar whose session is still open.
+
+    Yahoo serves today's partial candle during market hours: its ``Close`` is the
+    last trade and its ``Volume`` the shares traded so far, yet it reads as a
+    finished day. An analysis run mid-session then quotes a "close" and a "light
+    volume" that are neither. Returns None for a finished session, a non-US
+    exchange or a timestamp without a UTC offset. Disable it with
+    ``drop_unfinished_session: False`` in the config.
+    """
+    if not get_config().get("drop_unfinished_session", True):
+        return None
+    stamp = pd.Timestamp(last_bar)
+    if stamp.tzinfo is None or stamp.utcoffset() not in _US_EXCHANGE_OFFSETS:
+        return None
+    now = datetime.now(pytz.timezone("America/New_York"))
+    bar_day = stamp.tz_localize(None).normalize()
+    if now.weekday() >= 5 or bar_day.date() != now.date():
+        return None
+    return bar_day if (now.hour, now.minute) < _US_SESSION_SETTLED else None
 
 
 def _ensure_date_column(data: pd.DataFrame) -> pd.DataFrame:
@@ -224,10 +256,22 @@ def load_ohlcv(symbol: str, as_of_date: str, fill_gaps: bool = True) -> pd.DataF
         replace_file(data_file, lambda temp: downloaded.to_csv(temp, index=False, encoding="utf-8"))
         data = downloaded
 
+    data = _ensure_date_column(data)
+    # Read while the bars still carry their UTC offsets; cleaning strips them.
+    open_session = unfinished_session_date(data["Date"].iloc[-1]) if len(data) else None
     data = _clean_dataframe(data)
 
     # Filter to as_of_date to prevent look-ahead bias in backtesting.
     data = data[data["Date"] <= as_of_dt]
+
+    # A session still open has only a partial bar; the frame ends at the last
+    # finished session instead, and says so.
+    if open_session is not None and (data["Date"] >= open_session).any():
+        data = data[data["Date"] < open_session]
+        logger.info("%s: the %s session is still open; its partial bar is left out.",
+                    canonical, open_session.date())
+    else:
+        open_session = None
 
     # A closeless newest bar is an unsettled session, not a symbol without data.
     # _fill_price_gaps below drops it, here and mid-series alike, so the frame
@@ -254,6 +298,8 @@ def load_ohlcv(symbol: str, as_of_date: str, fill_gaps: bool = True) -> pd.DataF
     # feeding year-old prices into indicators (#1021).
     _assert_ohlcv_not_stale(data, as_of_date, symbol, canonical)
 
+    if open_session is not None:
+        data.attrs["open_session"] = f"{open_session:%Y-%m-%d}"
     return data
 
 

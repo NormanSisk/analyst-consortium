@@ -17,14 +17,30 @@ from tradingagents.dataflows.vendors.alpha_vantage import (
     get_news as get_alpha_vantage_news,
     get_stock as get_alpha_vantage_stock,
 )
+from tradingagents.dataflows.vendors.company_statements import (
+    get_company_statements as get_filings_company_statements,
+)
 from tradingagents.dataflows.vendors.fred import get_macro_data as get_fred_macro_data
+from tradingagents.dataflows.vendors.fred_backdrop import get_macro_backdrop as get_fred_macro_backdrop
+from tradingagents.dataflows.vendors.ibkr_market_stats import (
+    get_market_statistics as get_ibkr_market_statistics,
+)
 from tradingagents.dataflows.vendors.polymarket import (
     get_prediction_markets as get_polymarket_prediction_markets,
 )
+from tradingagents.dataflows.vendors.quiver import (
+    get_congress_trades as get_quiver_congress_trades,
+    get_insider_transactions as get_quiver_insider_transactions,
+)
+from tradingagents.dataflows.vendors.public_records import get_public_records as get_public_data_records
+from tradingagents.dataflows.vendors.sec_filing_events import get_filing_events as get_sec_filing_events
 from tradingagents.dataflows.vendors.sec_edgar import (
     get_balance_sheet as get_sec_edgar_balance_sheet,
     get_cashflow as get_sec_edgar_cashflow,
     get_income_statement as get_sec_edgar_income_statement,
+)
+from tradingagents.dataflows.vendors.yahoo.earnings import (
+    get_earnings_facts as get_yfinance_earnings_facts,
 )
 from tradingagents.dataflows.vendors.yahoo.fundamentals import (
     get_balance_sheet as get_yfinance_balance_sheet,
@@ -36,6 +52,19 @@ from tradingagents.dataflows.vendors.yahoo.fundamentals import (
 from tradingagents.dataflows.vendors.yahoo.market import (
     get_stock_stats_indicators_window,
     get_YFin_data_online,
+)
+from tradingagents.dataflows.vendors.yahoo.market_stats import (
+    get_market_statistics as get_yfinance_market_statistics,
+)
+from tradingagents.dataflows.vendors.yahoo.market_context import (
+    get_market_context as get_yfinance_market_context,
+)
+from tradingagents.dataflows.vendors.yahoo.ownership import (
+    get_ownership_and_short_interest as get_yfinance_ownership_and_short_interest,
+)
+from tradingagents.dataflows.vendors.yahoo.trends import get_trend_facts as get_yfinance_trend_facts
+from tradingagents.dataflows.vendors.yahoo.valuation import (
+    get_valuation_context as get_yfinance_valuation_context,
 )
 from tradingagents.dataflows.vendors.yahoo.news import get_global_news_yfinance, get_news_yfinance
 
@@ -61,7 +90,11 @@ TOOLS_CATEGORIES = {
             "get_fundamentals",
             "get_balance_sheet",
             "get_cashflow",
-            "get_income_statement"
+            "get_income_statement",
+            "get_earnings_facts",
+            "get_valuation_context",
+            "get_trend_facts",
+            "get_ownership_and_short_interest",
         ]
     },
     "news_data": {
@@ -76,12 +109,49 @@ TOOLS_CATEGORIES = {
         "description": "Macroeconomic indicators (rates, inflation, labor, growth)",
         "tools": [
             "get_macro_indicators",
+            "get_macro_backdrop",
         ]
     },
     "prediction_markets": {
         "description": "Market-implied probabilities for forward-looking events",
         "tools": [
             "get_prediction_markets",
+        ]
+    },
+    "congress_data": {
+        "description": "Trades by members of the U.S. Congress",
+        "tools": [
+            "get_congress_trades",
+        ]
+    },
+    "company_statements": {
+        "description": "The company's own earnings call, earnings release and management's discussion",
+        "tools": [
+            "get_company_statements",
+        ]
+    },
+    "market_statistics": {
+        "description": "Options-implied and realized volatility, put/call, dollar volume and price ranges (Yahoo; IBKR optional)",
+        "tools": [
+            "get_market_statistics",
+        ]
+    },
+    "market_context": {
+        "description": "The market's state and how the stock moves against it: drawdowns, VIX, beta, relative volatility",
+        "tools": [
+            "get_market_context",
+        ]
+    },
+    "filing_events": {
+        "description": "SEC filing events: 8-K items, offerings, late notices, 13D/13G holders, share-count growth",
+        "tools": [
+            "get_filing_events",
+        ]
+    },
+    "public_records": {
+        "description": "Federal contract awards, clinical studies and FDA recalls from public government sources",
+        "tools": [
+            "get_public_records",
         ]
     }
 }
@@ -91,7 +161,8 @@ TOOLS_CATEGORIES = {
 # sentinel instead of aborting the run (a bad LLM-supplied indicator, a missing
 # key, or a network blip should not crash an analysis over flavour data). Core
 # categories (prices, fundamentals, news) still raise so a broken primary is loud.
-OPTIONAL_CATEGORIES = {"macro_data", "prediction_markets"}
+OPTIONAL_CATEGORIES = {"macro_data", "prediction_markets", "congress_data", "company_statements",
+                       "market_statistics", "market_context", "filing_events", "public_records"}
 
 # Mapping of methods to their vendor-specific implementations
 VENDOR_METHODS = {
@@ -125,6 +196,18 @@ VENDOR_METHODS = {
         "sec_edgar": get_sec_edgar_income_statement,
         "yfinance": get_yfinance_income_statement,
     },
+    "get_earnings_facts": {
+        "yfinance": get_yfinance_earnings_facts,
+    },
+    "get_valuation_context": {
+        "yfinance": get_yfinance_valuation_context,
+    },
+    "get_trend_facts": {
+        "yfinance": get_yfinance_trend_facts,
+    },
+    "get_ownership_and_short_interest": {
+        "yfinance": get_yfinance_ownership_and_short_interest,
+    },
     # news_data
     "get_news": {
         "alpha_vantage": get_alpha_vantage_news,
@@ -136,15 +219,44 @@ VENDOR_METHODS = {
     },
     "get_insider_transactions": {
         "alpha_vantage": get_alpha_vantage_insider_transactions,
+        "quiver": get_quiver_insider_transactions,
         "yfinance": get_yfinance_insider_transactions,
     },
     # macro_data
     "get_macro_indicators": {
         "fred": get_fred_macro_data,
     },
+    "get_macro_backdrop": {
+        "fred": get_fred_macro_backdrop,
+    },
     # prediction_markets
     "get_prediction_markets": {
         "polymarket": get_polymarket_prediction_markets,
+    },
+    # congress_data
+    "get_congress_trades": {
+        "quiver": get_quiver_congress_trades,
+    },
+    # company_statements
+    "get_company_statements": {
+        "company_filings": get_filings_company_statements,
+    },
+    # market_statistics
+    "get_market_statistics": {
+        "yfinance": get_yfinance_market_statistics,
+        "ibkr": get_ibkr_market_statistics,
+    },
+    # market_context
+    "get_market_context": {
+        "yfinance": get_yfinance_market_context,
+    },
+    # filing_events
+    "get_filing_events": {
+        "sec_edgar": get_sec_filing_events,
+    },
+    # public_records
+    "get_public_records": {
+        "public_data": get_public_data_records,
     },
 }
 

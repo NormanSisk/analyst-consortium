@@ -1,5 +1,7 @@
+from datetime import datetime, timezone
 from typing import Annotated
 
+import pandas as pd
 import yfinance as yf
 
 from tradingagents.dataflows.date_window import (
@@ -18,6 +20,22 @@ from tradingagents.dataflows.vendors.yahoo.common import (
 
 # Quote currencies Yahoo gives in a minor unit, and the main unit of each.
 _MAIN_UNIT = {"GBp": "GBP", "GBX": "GBP", "ZAc": "ZAR", "ILA": "ILS"}
+
+# Yahoo returns every insider filing it holds, often more than a year of them. An
+# analyst shown all of it can attach the wrong year to an old trade, so only filings
+# in this trailing window are served.
+INSIDER_LOOKBACK_DAYS = 120
+
+# Trailing EPS this far above forward EPS usually means one-time items in the trailing year.
+_TRAILING_ABOVE_FORWARD = 1.15
+
+
+def _percent_vs(value, reference) -> str | None:
+    """``value`` as a signed percent distance from ``reference``, or None."""
+    try:
+        return f"{(float(value) / float(reference) - 1) * 100:+.1f}%"
+    except (TypeError, ValueError, ZeroDivisionError):
+        return None
 
 
 def get_fundamentals(
@@ -60,17 +78,33 @@ def get_fundamentals(
         value = info.get(key)
         return None if value is None else f"{value} {currency}" if currency else value
 
+    # The live quote, so the analyst reads the price instead of inferring it from the
+    # moving averages below.
+    last_price = info.get("currentPrice") or info.get("regularMarketPrice")
+    previous_close = info.get("regularMarketPreviousClose") or info.get("previousClose")
+    quote_time = info.get("regularMarketTime")
+    quote_stamp = (
+        datetime.fromtimestamp(quote_time, tz=timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+        if isinstance(quote_time, (int, float)) else None
+    )
+
+    def priced(value):
+        return None if value is None else f"{value} {quote}" if quote else value
+
     fields = [
         ("Name", info.get("longName")),
         ("Sector", info.get("sector")),
         ("Industry", info.get("industry")),
+        ("Last Price (live quote)", priced(last_price)),
+        ("Previous Close", priced(previous_close)),
+        ("Quote Time", quote_stamp),
         ("Market Cap", money("marketCap", main)),
         ("PE Ratio (TTM)", info.get("trailingPE")),
-        ("Forward PE", info.get("forwardPE")),
+        ("Forward PE (on Yahoo's forward EPS, normally the next fiscal year's estimate)", info.get("forwardPE")),
         ("PEG Ratio", info.get("pegRatio")),
         ("Price to Book", info.get("priceToBook")),
         ("EPS (TTM)", money("trailingEps", main)),
-        ("Forward EPS", money("forwardEps", main)),
+        ("Forward EPS (normally the next fiscal year's estimate)", money("forwardEps", main)),
         ("Dividend Yield", None if dividend_yield is None else f"{dividend_yield}%"),
         ("Beta", info.get("beta")),
         ("52 Week High", money("fiftyTwoWeekHigh", quote)),
@@ -100,6 +134,26 @@ def get_fundamentals(
     # agent might fabricate around.
     if not lines:
         raise_for_empty(ticker, canonical, "fundamental fields")
+
+    # Distances worked out here, so the analyst quotes them instead of computing its own.
+    derived = [
+        ("Last Price vs 50 Day Average", _percent_vs(last_price, info.get("fiftyDayAverage"))),
+        ("Last Price vs 200 Day Average", _percent_vs(last_price, info.get("twoHundredDayAverage"))),
+        ("Last Price vs 52 Week High", _percent_vs(last_price, info.get("fiftyTwoWeekHigh"))),
+        ("Last Price vs 52 Week Low", _percent_vs(last_price, info.get("fiftyTwoWeekLow"))),
+    ]
+    lines += [f"{label}: {value}" for label, value in derived if value is not None]
+
+    trailing_eps, forward_eps = info.get("trailingEps"), info.get("forwardEps")
+    if (
+        isinstance(trailing_eps, (int, float)) and isinstance(forward_eps, (int, float))
+        and forward_eps > 0 and trailing_eps > forward_eps * _TRAILING_ABOVE_FORWARD
+    ):
+        lines.append(
+            f"Note: trailing EPS ({trailing_eps}) is well above forward EPS ({forward_eps}), so "
+            "the trailing year probably includes one-time gains. Trailing P/E, net income and "
+            "profit margin then overstate normal earnings; prefer forward figures for valuation."
+        )
 
     return f"# Company Fundamentals for {canonical}\n\n" + "\n".join(lines)
 
@@ -163,7 +217,29 @@ def get_insider_transactions(
             raise VendorUnavailableError("Yahoo Finance is unreachable; insider filings were not retrieved")
         return f"No insider transactions reported for symbol '{canonical}'"
 
-    return f"# Insider Transactions data for {canonical}\n" + data.to_csv()
+    # A dated run is served only the trailing window, with its dates stated, so an old
+    # trade cannot be read as a recent one. A direct call with no date gets everything.
+    if not as_of_date:
+        return f"# Insider Transactions data for {canonical}\n" + data.to_csv()
+    end = pd.Timestamp(as_of_date)
+    start = end - pd.Timedelta(days=INSIDER_LOOKBACK_DAYS)
+    filed = pd.to_datetime(data["Start Date"], errors="coerce")
+    if getattr(filed.dt, "tz", None) is not None:
+        filed = filed.dt.tz_localize(None)
+    recent = data[(filed >= start) & (filed <= end + pd.Timedelta(days=1))]
+    window = f"{start:%Y-%m-%d} to {end:%Y-%m-%d}"
+    omitted = len(data) - len(recent)
+    if recent.empty:
+        return (
+            f"No insider transactions for '{canonical}' dated {window}. "
+            f"{omitted} older filings were omitted."
+        )
+    return (
+        f"# Insider Transactions data for {canonical}, trades dated {window}\n"
+        f"# {len(recent)} filings shown; {omitted} older filings omitted. "
+        "Read the Start Date column in full, year included.\n"
+        + recent.to_csv()
+    )
 
 
 def get_company_profile(ticker: str) -> dict:

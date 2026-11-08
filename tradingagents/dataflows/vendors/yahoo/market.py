@@ -10,7 +10,11 @@ from stockstats import wrap
 from tradingagents.dataflows.errors import NoMarketDataError, VendorError
 from tradingagents.dataflows.symbols import normalize_symbol
 from tradingagents.dataflows.vendors.yahoo.common import price_text, raise_for_empty, yf_retry
-from tradingagents.dataflows.vendors.yahoo.ohlcv import _assert_ohlcv_not_stale, load_ohlcv
+from tradingagents.dataflows.vendors.yahoo.ohlcv import (
+    _assert_ohlcv_not_stale,
+    load_ohlcv,
+    unfinished_session_date,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +43,14 @@ def get_YFin_data_online(
     if data is None or data.empty:
         raise_for_empty(symbol, canonical, f"rows between {start_date} and {end_date}")
 
+    # A US session still open has only a partial bar (last trade as "Close", shares
+    # so far as "Volume"). Leave it out, and say so in the header below.
+    open_session = unfinished_session_date(data.index[-1])
+    if open_session is not None and len(data) > 1:
+        data = data.iloc[:-1]
+    else:
+        open_session = None
+
     # Remove timezone info from index for cleaner output
     if data.index.tz is not None:
         data.index = data.index.tz_localize(None)
@@ -58,7 +70,13 @@ def get_YFin_data_online(
     # instrument was priced.
     label = canonical if canonical == symbol.upper() else f"{canonical} (from {symbol})"
     header = f"# Stock data for {label} from {start_date} to {end_date}\n"
-    header += f"# Total records: {len(data)}\n\n"
+    header += f"# Total records: {len(data)}\n"
+    if open_session is not None:
+        header += (
+            f"# The {open_session:%Y-%m-%d} session was still open when this was retrieved. Its partial "
+            "bar is left out, so the last row is the previous finished session.\n"
+        )
+    header += "\n"
 
     return header + csv_string
 

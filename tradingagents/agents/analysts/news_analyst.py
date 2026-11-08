@@ -1,21 +1,32 @@
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 
+from tradingagents.agents.analysts.toolset import guidance, offered
 from tradingagents.agents.analysts.turn import take_turn
 from tradingagents.agents.context import get_instrument_context_from_state, get_language_instruction
 from tradingagents.agents.tools import (
+    get_earnings_facts,
     get_global_news,
+    get_macro_backdrop,
     get_macro_indicators,
     get_news,
     get_prediction_markets,
 )
 
 # The tools this analyst is offered; its tool node is built from the same tuple.
-TOOLS = (
+TOOLS = offered((
     get_news,
     get_global_news,
     get_macro_indicators,
     get_prediction_markets,
-)
+    get_earnings_facts,
+    get_macro_backdrop,
+))
+
+# Prompt paragraphs for the tools that can be switched off (TRADINGAGENTS_DISABLED_TOOLS); a tool that is off is
+# not mentioned.
+_GUIDANCE = {
+    "get_macro_backdrop": " Use `get_macro_backdrop` once for credit spreads, financial conditions and the dates of the next data releases (and a sector-linked series when the stock has one). Rules for the macro backdrop: state each figure with its date; describe it as backdrop for the whole market and not as evidence about this company; name the release dates as event risk and never predict what the release will show; include every item in the tool's 'Flags to state in the report' section (or say why one does not apply); and if a series is not available, say so.",
+}
 
 
 def create_news_analyst(llm):
@@ -26,8 +37,9 @@ def create_news_analyst(llm):
         instrument_context = get_instrument_context_from_state(state)
 
         system_message = (
-            f"You are a news researcher tasked with analyzing recent news and trends over the past week. Please write a comprehensive report of the current state of the world that is relevant for trading and macroeconomics. Use the available tools: get_news(start_date, end_date) for news about the {asset_label} under analysis, get_global_news(curr_date, look_back_days, limit) for broader macroeconomic news, get_macro_indicators(indicator, curr_date, look_back_days) to ground macro commentary in actual data from FRED (e.g. 'cpi', 'core_pce', 'unemployment', 'fed_funds_rate', '10y_treasury', 'yield_curve'), and get_prediction_markets(topic, limit) for live market-implied probabilities of forward-looking events (e.g. 'Fed rate cut', 'recession 2026', geopolitical or sector events). Provide specific, actionable insights with supporting evidence to help traders make informed decisions."
+            f"You are a news researcher tasked with analyzing recent news and trends over the past week. Please write a comprehensive report of the current state of the world that is relevant for trading and macroeconomics. Use the available tools: get_news(start_date, end_date) for news about the {asset_label} under analysis, get_global_news(curr_date, look_back_days, limit) for broader macroeconomic news, get_macro_indicators(indicator, curr_date, look_back_days) to ground macro commentary in actual data from FRED (e.g. 'cpi', 'core_pce', 'unemployment', 'fed_funds_rate', '10y_treasury', 'yield_curve'), and get_prediction_markets(topic, limit) for live market-implied probabilities of forward-looking events (e.g. 'Fed rate cut', 'recession 2026', geopolitical or sector events), and get_earnings_facts() for the scheduled date of the next earnings report and how recent reports compared with estimates. Take the earnings date from get_earnings_facts and treat it as authoritative over headlines or article titles; if it lists a report date, state that date (and whether it falls before or after the market close on the dates around today) instead of calling the date unconfirmed. Also report from get_earnings_facts whether analysts' estimates are being raised or cut and what the recent analyst actions did to price targets, quoting its 'Flags to state in the report' section where it has one; this shows how professionals are updating their numbers, not a forecast. Provide specific, actionable insights with supporting evidence to help traders make informed decisions."
             + """ Make sure to append a Markdown table at the end of the report to organize key points in the report, organized and easy to read."""
+            + guidance(TOOLS, _GUIDANCE)
             + get_language_instruction()
         )
 

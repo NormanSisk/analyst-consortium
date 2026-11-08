@@ -104,10 +104,23 @@ def get_news_yfinance(
     canonical = normalize_symbol(ticker)
     resolved = "" if canonical == ticker else f" (resolved to {canonical})"
     subject = f"news for {ticker}{resolved}"
-    feed = yf_retry(lambda: yf.Ticker(canonical).get_news(count=article_limit)) or []
+    feed_failed = False
+    try:
+        feed = yf_retry(lambda: yf.Ticker(canonical).get_news(count=article_limit)) or []
+    except VendorUnavailableError:
+        # A failing quote feed reads like an empty one, so Yahoo search is tried below.
+        feed, feed_failed = [], True
     articles = [_extract_article_data(a) for a in feed]
     if not feed:
-        found, answered = _search_news(canonical, article_limit)
+        try:
+            found, answered = _search_news(canonical, article_limit)
+        except VendorUnavailableError:
+            raise
+        except Exception as exc:
+            if not feed_failed:
+                raise
+            # Search failing too means Yahoo news could not be reached at all.
+            raise VendorUnavailableError(f"Yahoo Finance news request failed: {type(exc).__name__}") from exc
         if not answered:
             raise VendorUnavailableError(f"Yahoo Finance returned no news response for {canonical}")
         if not found:

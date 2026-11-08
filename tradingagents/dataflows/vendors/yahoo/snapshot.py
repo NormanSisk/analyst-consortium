@@ -64,6 +64,88 @@ def _fmt(value) -> str:
     return str(value)
 
 
+def _signed_percent(value: float, reference: float) -> str:
+    return f"{(value / reference - 1) * 100:+.1f}%"
+
+
+def _computed_facts(df: pd.DataFrame, stock_df, window: int) -> list[str]:
+    """Distances, drawdown, moving-average cross state and volume ratio, worked out in code.
+
+    The analyst is an LLM and gets this arithmetic wrong (a drawdown off by two
+    points, a death cross called absent while the 50-day sat under the 200-day), so
+    every figure it is likely to quote is computed here.
+    """
+    lines: list[str] = []
+    close = df["Close"].astype(float)
+    last = float(close.iloc[-1])
+
+    if len(close) > 1:
+        prior = float(close.iloc[-2])
+        lines.append(
+            f"- Change from the prior session's close ({_fmt(df['Date'].iloc[-2])}, "
+            f"{price_text(prior)}): {_signed_percent(last, prior)}"
+        )
+
+    recent = df.tail(window)
+    peak = recent.loc[recent["Close"].astype(float).idxmax()]
+    trough = recent.loc[recent["Close"].astype(float).idxmin()]
+    lines.append(
+        f"- Highest close of the last {len(recent)} sessions: {price_text(float(peak['Close']))} on "
+        f"{_fmt(peak['Date'])}; the latest close is {_signed_percent(last, float(peak['Close']))} from it"
+    )
+    lines.append(
+        f"- Lowest close of the last {len(recent)} sessions: {price_text(float(trough['Close']))} on "
+        f"{_fmt(trough['Date'])}; the latest close is {_signed_percent(last, float(trough['Close']))} from it"
+    )
+
+    year = df.tail(252)
+    if len(year) >= 100:
+        high, low = float(year["High"].max()), float(year["Low"].min())
+        lines.append(
+            f"- Range of the last {len(year)} sessions: high {price_text(high)} "
+            f"({_signed_percent(last, high)} from it), low {price_text(low)} "
+            f"({_signed_percent(last, low)} from it)"
+        )
+
+    for name, label in (("close_10_ema", "10-day EMA"), ("close_50_sma", "50-day SMA"),
+                        ("close_200_sma", "200-day SMA")):
+        try:
+            value = float(stock_df[name].iloc[-1])
+        except Exception:  # noqa: BLE001 — a missing average is skipped, not fatal
+            continue
+        if pd.notna(value):
+            side = "above" if last >= value else "below"
+            lines.append(f"- Latest close is {side} the {label} ({price_text(value)}): {_signed_percent(last, value)}")
+
+    try:
+        gap = (stock_df["close_50_sma"] - stock_df["close_200_sma"]).dropna()
+    except Exception:  # noqa: BLE001
+        gap = pd.Series(dtype=float)
+    if len(gap) >= 2:
+        fast_above = (gap > 0)
+        state = ("The 50-day SMA is ABOVE the 200-day SMA (golden-cross regime)" if fast_above.iloc[-1]
+                 else "The 50-day SMA is BELOW the 200-day SMA (death-cross regime)")
+        flips = [i for i in range(1, len(fast_above)) if fast_above.iloc[i] != fast_above.iloc[i - 1]]
+        if flips:
+            cross = flips[-1]
+            kind = "golden cross" if fast_above.iloc[cross] else "death cross"
+            lines.append(
+                f"- {state}. The last crossover was a {kind} on {_fmt(df.loc[gap.index[cross], 'Date'])}, "
+                f"{len(gap) - 1 - cross} sessions ago"
+            )
+        else:
+            lines.append(f"- {state}; no crossover in the {len(gap)} sessions with both averages")
+
+    if len(df) >= 21 and df["Volume"].iloc[-21:-1].mean() > 0:
+        average = float(df["Volume"].iloc[-21:-1].mean())
+        volume = float(df["Volume"].iloc[-1])
+        lines.append(
+            f"- Latest volume {volume:,.0f} is {volume / average:.2f}x the average of the 20 sessions "
+            f"before it ({average:,.0f})"
+        )
+    return lines
+
+
 def build_verified_market_snapshot(
     symbol: str,
     as_of_date: str,
@@ -97,6 +179,14 @@ def build_verified_market_snapshot(
         f"- Requested analysis date: {as_of_date}",
         f"- Latest trading row used: {latest_date}",
         "- Rows after the requested analysis date are excluded before verification.",
+    ]
+    if df.attrs.get("open_session"):
+        lines.append(
+            f"- The {df.attrs['open_session']} session was still open when this was retrieved. Its "
+            "partial bar is left out, so every figure below is as of the previous finished session; "
+            "the live price is in the fundamentals data (Last Price)."
+        )
+    lines += [
         "",
         "### Latest verified OHLCV row",
         "",
@@ -115,6 +205,14 @@ def build_verified_market_snapshot(
               "| Date | Close |", "|---|---:|"]
     for _, row in recent.iterrows():
         lines.append(f"| {_fmt(row['Date'])} | {_fmt(row.get('Close'))} |")
+
+    facts = _computed_facts(df, stock_df, window)
+    if facts:
+        lines += ["", "### Computed facts (worked out by code from the rows above)", ""] + facts
+        lines.append(
+            "Quote these figures for percentages, drawdowns, moving-average crossovers and "
+            "volume comparisons instead of calculating your own."
+        )
 
     lines += [
         "",

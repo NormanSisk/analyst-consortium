@@ -164,10 +164,26 @@ def build_default_config() -> dict:
             "news_data": "yfinance",             # Options: alpha_vantage, yfinance
             "macro_data": "fred",                # Options: fred (needs FRED_API_KEY)
             "prediction_markets": "polymarket",  # Options: polymarket (keyless)
+            "congress_data": "quiver",           # Options: quiver (needs QUIVER_API_KEY)
+            # Earnings call (Alpha Vantage key; a missing one skips that section), release and MD&A (SEC EDGAR).
+            "company_statements": "company_filings",
+            # Volatility, option positioning, volume and ranges from Yahoo (option chains and prices; no sign-in).
+            # "ibkr" is still available as a vendor: it reads IBKR through the helper in IBKR_HELPER_DIR, but its
+            # browser sign-in lapses within minutes, so it is not the default.
+            "market_statistics": "yfinance",
+            # The market's state and the stock's beta, relative volatility and market-explained move, from
+            # Yahoo daily closes (dated, so past runs are served as of their date).
+            "market_context": "yfinance",
+            # What the company has filed with the SEC (8-K items, offerings, 13D/13G holders, share counts); no key.
+            "filing_events": "sec_edgar",
+            # Federal contract awards (USAspending), clinical studies (ClinicalTrials.gov) and FDA recalls; no keys.
+            "public_records": "public_data",
         },
         # Tool-level configuration (takes precedence over category-level)
         "tool_vendors": {
             # Example: "get_stock_data": "alpha_vantage",  # Override category default
+            # Quiver's Form 4 data first (needs QUIVER_API_KEY); Yahoo answers when Quiver cannot.
+            "get_insider_transactions": "quiver,yfinance",
         },
         # Benchmark for alpha calculation in the reflection layer.
         # ``benchmark_ticker`` (when set) overrides the suffix map for all

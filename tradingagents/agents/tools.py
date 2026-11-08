@@ -169,6 +169,192 @@ def get_income_statement(
 
 
 @tool
+def get_earnings_facts(
+    ticker: Annotated[str, InjectedState("company_of_interest")],
+    curr_date: Annotated[str, "current date you are trading at, yyyy-mm-dd"] = None,
+    trade_date: Annotated[str, InjectedState("trade_date")] = "",
+) -> str:
+    """
+    Retrieve earnings history and analyst expectations for the instrument under analysis:
+    reported versus estimated EPS for recent quarters (beat or miss, with the surprise
+    percent), the next scheduled report, sell-side price targets and ratings, the consensus EPS
+    and revenue estimates by period with how they have moved over 30 and 90 days and how many
+    analysts raised or cut them, and the recent analyst actions (target changes, upgrades, downgrades).
+    Uses the configured fundamental_data vendor.
+    Args:
+        curr_date (str): Current date you are trading at, yyyy-mm-dd
+    Returns:
+        str: A formatted report of earnings results and analyst expectations
+    """
+    return route_to_vendor("get_earnings_facts", ticker, as_of(curr_date, trade_date))
+
+
+@tool
+def get_trend_facts(
+    ticker: Annotated[str, InjectedState("company_of_interest")],
+    curr_date: Annotated[str, "current date you are trading at, yyyy-mm-dd"] = None,
+    trade_date: Annotated[str, InjectedState("trade_date")] = "",
+) -> str:
+    """
+    Retrieve the last five quarters of the instrument's revenue, operating income and margin,
+    cash flow, capital spending, share count, debt and buybacks, with each trend worked out two
+    ways (against the same quarter a year earlier and against the quarters just before it) and
+    rule-based flags for what deserves a sentence. Uses the configured fundamental_data vendor.
+    Args:
+        curr_date (str): Current date you are trading at, yyyy-mm-dd
+    Returns:
+        str: A table of five quarters, both views of the latest quarter, and flags
+    """
+    return route_to_vendor("get_trend_facts", ticker, as_of(curr_date, trade_date))
+
+
+@tool
+def get_valuation_context(
+    ticker: Annotated[str, InjectedState("company_of_interest")],
+    curr_date: Annotated[str, "current date you are trading at, yyyy-mm-dd"] = None,
+    trade_date: Annotated[str, InjectedState("trade_date")] = "",
+) -> str:
+    """
+    Retrieve yardsticks for whether the instrument's price is high or low: its trailing P/E
+    against its own readings over the last ten years, a table of similar companies in the same
+    industry, the earnings yield against the 10-year Treasury yield with the steady growth the
+    price implies, and reference price levels worked out from those multiples. These are
+    present-day figures and arithmetic, not forecasts. Uses the configured fundamental_data vendor.
+    Args:
+        curr_date (str): Current date you are trading at, yyyy-mm-dd
+    Returns:
+        str: A report of valuation yardsticks with the figures already worked out
+    """
+    return route_to_vendor("get_valuation_context", ticker, as_of(curr_date, trade_date))
+
+
+@tool
+def get_ownership_and_short_interest(
+    ticker: Annotated[str, InjectedState("company_of_interest")],
+    curr_date: Annotated[str, "current date you are trading at, yyyy-mm-dd"] = None,
+    trade_date: Annotated[str, InjectedState("trade_date")] = "",
+) -> str:
+    """
+    Retrieve how heavily the instrument is sold short and who owns it: shares short with the
+    report date, the change from the report before, days to cover, the percentages worked out
+    against shares outstanding, the totals held by institutions and insiders, and the largest
+    institutional and fund holders with how each changed its position in its latest filing.
+    These are filings with a lag, stated beside each figure, not today's positions. Uses the
+    configured fundamental_data vendor.
+    Args:
+        curr_date (str): Current date you are trading at, yyyy-mm-dd
+    Returns:
+        str: Short-interest and ownership figures with rule-based flags
+    """
+    return route_to_vendor("get_ownership_and_short_interest", ticker, as_of(curr_date, trade_date))
+
+
+@tool
+def get_market_statistics(
+    ticker: Annotated[str, InjectedState("company_of_interest")],
+    curr_date: Annotated[str, "current date you are trading at, yyyy-mm-dd"] = None,
+    trade_date: Annotated[str, InjectedState("trade_date")] = "",
+) -> str:
+    """
+    Retrieve how much the instrument moves and how it trades: 30-day realized volatility, the 13-, 26- and
+    52-week ranges with where the last close sits in each, year to date, and the latest session's dollar
+    volume against its 90-day average and median (all as of the analysis date); and, for a run dated today, the
+    options-implied volatility for 30 days with its ratio to realized, a proxy percentile, the
+    one-standard-deviation ranges and the straddle-implied move (arithmetic, not a forecast), the term
+    structure, put/call ratios and skew, with rule-based flags. Uses the configured market_statistics vendor.
+    Args:
+        curr_date (str): Current date you are trading at, yyyy-mm-dd
+    Returns:
+        str: Volatility, range and volume statistics with flags
+    """
+    return route_to_vendor("get_market_statistics", ticker, as_of(curr_date, trade_date))
+
+
+@tool
+def get_market_context(
+    ticker: Annotated[str, InjectedState("company_of_interest")],
+    curr_date: Annotated[str, "current date you are trading at, yyyy-mm-dd"] = None,
+    trade_date: Annotated[str, InjectedState("trade_date")] = "",
+) -> str:
+    """
+    Retrieve the state of the market and how the instrument moves against it: the S&P 500, Nasdaq,
+    small-cap and sector-fund drawdowns from their 52-week highs with the common labels (pullback,
+    correction, bear market), the VIX against its past year, and for the instrument its volatility
+    compared with the market's, its beta with R-squared, its stock-specific volatility, how much of its
+    last quarter's move the market explains, relative strength and drawdown, with rule-based flags.
+    Worked out from dated daily closes, so a past date is served as of that date. Uses the configured
+    market_context vendor.
+    Args:
+        curr_date (str): Current date you are trading at, yyyy-mm-dd
+    Returns:
+        str: Market state and relative-volatility figures with flags
+    """
+    return route_to_vendor("get_market_context", ticker, as_of(curr_date, trade_date))
+
+
+@tool
+def get_filing_events(
+    ticker: Annotated[str, InjectedState("company_of_interest")],
+    curr_date: Annotated[str, "current date you are trading at, yyyy-mm-dd"] = None,
+    trade_date: Annotated[str, InjectedState("trade_date")] = "",
+) -> str:
+    """
+    Retrieve what the company has filed with the SEC that its financial statements do not show yet, as filed
+    by the analysis date: Form 8-K events by item for the last 180 days (delisting notices, auditor changes,
+    sales of unregistered equity, material agreements, officer changes, shareholder votes), registration and
+    prospectus filings, late-filing notices, amended periodic reports, Schedule 13D and 13G holders of 5% or
+    more filed in the last year, and the cover-page share count with its change over a year, with
+    rule-based flags. Uses the configured filing_events vendor.
+    Args:
+        curr_date (str): Current date you are trading at, yyyy-mm-dd
+    Returns:
+        str: Filing events with flags
+    """
+    return route_to_vendor("get_filing_events", ticker, as_of(curr_date, trade_date))
+
+
+@tool
+def get_public_records(
+    ticker: Annotated[str, InjectedState("company_of_interest")],
+    curr_date: Annotated[str, "current date you are trading at, yyyy-mm-dd"] = None,
+    trade_date: Annotated[str, InjectedState("trade_date")] = "",
+) -> str:
+    """
+    Retrieve public government records about the company: federal contract awards in the last 12 months
+    (USAspending, with the largest listed), and for health-care companies the studies it sponsors that are
+    recruiting by phase (ClinicalTrials.gov) and FDA drug recalls naming it (openFDA). Matching is by the
+    company's registered name, so absence is not absence of a business. Uses the configured public_records
+    vendor.
+    Args:
+        curr_date (str): Current date you are trading at, yyyy-mm-dd
+    Returns:
+        str: Awards, studies and recalls with flags
+    """
+    return route_to_vendor("get_public_records", ticker, as_of(curr_date, trade_date))
+
+
+@tool
+def get_macro_backdrop(
+    ticker: Annotated[str, InjectedState("company_of_interest")],
+    curr_date: Annotated[str, "current date you are trading at, yyyy-mm-dd"] = None,
+    trade_date: Annotated[str, InjectedState("trade_date")] = "",
+) -> str:
+    """
+    Retrieve a lean macro backdrop from FRED as known on the analysis date: the high-yield bond spread and
+    the Chicago Fed financial conditions index with their changes over a month and a quarter and their place
+    in the past year, the dates of the next CPI, jobs, GDP, PCE and retail-sales releases, and for a
+    Japanese company the yen, or for an energy or utilities company crude oil and natural gas, with
+    rule-based flags. It is backdrop for the whole market, not evidence about one company. Uses the
+    configured macro_data vendor.
+    Args:
+        curr_date (str): Current date you are trading at, yyyy-mm-dd
+    Returns:
+        str: Credit, conditions and release dates with flags
+    """
+    return route_to_vendor("get_macro_backdrop", ticker, as_of(curr_date, trade_date))
+
+
+@tool
 def get_news(
     ticker: Annotated[str, InjectedState("company_of_interest")],
     start_date: Annotated[str, "Start date in yyyy-mm-dd format"],
@@ -227,6 +413,46 @@ def get_insider_transactions(
         str: A report of insider transaction data
     """
     return route_to_vendor("get_insider_transactions", ticker, trade_date or None)
+
+
+@tool
+def get_congress_trades(
+    ticker: Annotated[str, InjectedState("company_of_interest")],
+    curr_date: Annotated[str, "current date you are trading at, yyyy-mm-dd"] = None,
+    trade_date: Annotated[str, InjectedState("trade_date")] = "",
+) -> str:
+    """
+    Retrieve trades in the instrument made by members of the U.S. Congress, as they
+    disclosed them over the last 180 days: who, buy or sell, the amount range, the trade
+    date, the filing date and how many days late it was filed. Disclosures arrive up to
+    45 days after a trade, so this is slow background context. Uses the configured
+    congress_data vendor.
+    Args:
+        curr_date (str): Current date you are trading at, yyyy-mm-dd
+    Returns:
+        str: A report of recent Congress trades in the instrument
+    """
+    return route_to_vendor("get_congress_trades", ticker, as_of(curr_date, trade_date))
+
+
+@tool
+def get_company_statements(
+    ticker: Annotated[str, InjectedState("company_of_interest")],
+    curr_date: Annotated[str, "current date you are trading at, yyyy-mm-dd"] = None,
+    trade_date: Annotated[str, InjectedState("trade_date")] = "",
+) -> str:
+    """
+    Retrieve what the company itself said about its latest quarter: the earnings call
+    transcript (prepared remarks and the analysts' questions), the earnings release with
+    its guidance, and the management's discussion and analysis from the latest 10-Q or 10-K.
+    These are the company's claims, not verified facts. Uses the configured
+    company_statements vendor.
+    Args:
+        curr_date (str): Current date you are trading at, yyyy-mm-dd
+    Returns:
+        str: The three documents, trimmed, each under its own heading
+    """
+    return route_to_vendor("get_company_statements", ticker, as_of(curr_date, trade_date))
 
 
 @tool
