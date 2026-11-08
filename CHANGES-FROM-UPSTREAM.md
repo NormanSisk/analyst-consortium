@@ -120,7 +120,7 @@ All of these are marked in the file lists at the end. In short:
 - **`dataflows/vendors/yahoo/` fundamentals, market, news, ohlcv, snapshot:** the data fixes and computed facts described above.
 - **`portfolio.py`, `reporting.py`, `report_html.py`:** the profile and no-position reading, the new report sections, our header and the print layout.
 - **`cli/main.py`, `cli/run.py`:** the new commands and flags, the live event log, the usage log and the offer of extra runs.
-- **`pyproject.toml`:** an optional `ui` extra (`pip install "tradingagents[ui]"`) and the packaged icon and web files. **`.gitignore`:** keeps private local data out (see below).
+- **`pyproject.toml`:** an optional `ui` extra (`pip install "tradingagents[ui]"`) and the packaged icon and web files. **`.gitignore`:** keeps private local data out (see below). **`README.md`:** a short notice at the top pointing here; the rest is still the original's and will be rewritten before release.
 - **Seven test files:** adjusted to match the changes.
 
 ## What we did not change
