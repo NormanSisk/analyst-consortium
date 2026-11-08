@@ -27,14 +27,20 @@ function fillFind() {
   }).join("");
   $("f-record-text").textContent = "Record the stocks shown in my picks log" + (findOpts.ledger_path ? " (" + findOpts.ledger_path + ")" : "") +
     ", so that later I can see how this way of looking did.";
+  if (typeof fillCustom === "function" && findOpts.custom) fillCustom(findOpts.custom);        // custom.js draws the filter form
   updateRecipe();
 }
+
+const START_TEXT = {"beaten-down": "Find stocks", list: "Check these stocks", custom: "Search"};
 
 function updateRecipe() {
   const recipe = recipeNow();
   $("f-list-block").hidden = recipe !== "list";
+  $("f-custom-block").hidden = recipe !== "custom";
+  const used = findOpts.settings.filter(s => s["for"].indexOf(recipe) >= 0);
   findOpts.settings.forEach(s => { document.querySelector(`[data-setting="${s.name}"]`).hidden = s["for"].indexOf(recipe) < 0; });
-  $("f-start").textContent = recipe === "list" ? "Check these stocks" : "Find stocks";
+  $("f-more").hidden = used.length === 0;                                                       // "More settings" only where some apply
+  $("f-start").textContent = START_TEXT[recipe] || "Find stocks";
 }
 
 function updateFindGate() { $("f-start").disabled = !findOpts || findBusy; }
@@ -64,10 +70,16 @@ async function submitFind(e) {
   let settings;
   try { settings = collectSettings(recipe); } catch (x) { err.textContent = x.message; if (x.field) x.field.focus(); return; }
   if (recipe === "list" && !text.trim()) { err.textContent = "Type at least one stock symbol, or load a file."; $("f-text").focus(); return; }
+  let custom = null;
+  if (recipe === "custom") {
+    try { custom = collectCustom(); } catch (x) { err.textContent = x.message; if (x.field) { const g = x.field.closest("details"); if (g) g.open = true; x.field.focus(); } return; }
+  }
   findBusy = true; findFresh = true; updateFindGate();
   $("f-results").hidden = true; $("f-results").innerHTML = "";
   try {
-    const job = await api("/api/picker/run", {recipe, text: recipe === "list" ? text : "", settings, record: $("f-record").checked});
+    const body = {recipe, text: recipe === "list" ? text : "", settings, record: $("f-record").checked};
+    if (custom) body.custom = custom;
+    const job = await api("/api/picker/run", body);
     findJob = job.id; findFails = 0;
     $("f-progress").hidden = false; $("f-progress-h").textContent = "Searching";
     drawProgress(job);
@@ -92,7 +104,7 @@ async function loadListFile(e) {
 
 // ---------------------------------------------------------------- progress
 function drawProgress(j) {
-  $("f-status").textContent = (j.recipe === "list" ? "Checking your stocks" : "Searching the market") + "... " + dur(j.elapsed || 0) + " so far. This costs nothing.";
+  $("f-status").textContent = (j.recipe === "list" ? "Checking your stocks" : "Searching the market") + "... " + dur(j.elapsed || 0) + " so far. This costs nothing.";   // a custom search is also a market search
   $("f-log").innerHTML = j.messages.slice(-8).map(m => `<li>${esc(m)}</li>`).join("");
 }
 
@@ -144,6 +156,9 @@ function pickCard(r, titles) {
     ["Price", r.price === null || r.price === undefined ? "n/a" : r.price],
     ["Market value", money(r.market_cap)],
   ];
+  // what Yahoo's screener returned with the stock, when it did (a market search or a custom search)
+  [["Trailing P/E", r.trailing_pe, "x"], ["Dividend yield", r.dividend_yield_pct, "%"], ["Price to book value", r.price_to_book, "x"],
+    ["Average analyst rating (1 = strong buy, 5 = sell)", r.analyst_rating, ""]].forEach(x => { if (x[1] !== null && x[1] !== undefined) facts.push([x[0], x[1] + x[2]]); });
   const conds = "abcde".split("").map(c => {
     const st = r[c + "_status"], b = COND_BADGE[st] || COND_BADGE.UNKNOWN;
     return `<li class="cond"><span class="badge small ${b[0]}"><span aria-hidden="true">${b[1]}</span><span>${b[2]}</span></span><span><strong>${esc(titles[c] || c)}.</strong> ${esc(cap(r[c + "_detail"]))}</span></li>`;
@@ -161,17 +176,20 @@ function drawResults(j) {
   const r = j.result, rows = r.rows, titles = r.condition_titles || {}, box = $("f-results");
   const shown = rows.slice(0, r.top || rows.length), m = r.market;
   findData = {id: j.id, result: r};
-  const name = r.recipe === "list" ? "Your stocks" : "Beaten-down quality";
+  const name = {list: "Your stocks", custom: "Your search"}[r.recipe] || "Beaten-down quality";
   const market = "The S&P 500 is " + (-m.drawdown * 100).toFixed(1) + "% below its high (" + m.label + ")" +
     (m.vix !== null && m.vix_rank !== null ? "; the VIX is " + m.vix.toFixed(1) + ", higher than on " + Math.round(m.vix_rank * 100) + "% of days in the past year" : "") + ".";
   let html = `<h3 id="f-results-h" tabindex="-1">Results: ${esc(name)}</h3>
     <p class="hint">Prices as of ${esc(r.as_of || "n/a")}. ${esc(market)}</p>
+    ${r.filters && r.filters.length ? `<details class="advanced"><summary><span class="btn-like secondary">What you asked for</span></summary><ul class="outcomes">${r.filters.map(f => `<li>${esc(f)}</li>`).join("")}</ul></details>` : ""}
     <h4>How many stocks at each step</h4>
     <ol class="funnel">${r.funnel.map(f => `<li><span class="n">${f.count}</span><span>${esc(f.step)}</span></li>`).join("")}</ol>`;
   const notes = (r.warnings || []).concat(j.skipped && j.skipped.length ? ["Not usable as symbols, so skipped: " + j.skipped.slice(0, 12).join(", ") + (j.skipped.length > 12 ? " and more" : "") + "."] : []);
   html += notes.map(n => `<p class="note">${esc(n)}</p>`).join("");
   if (!rows.length) {
-    html += `<p class="note">No stocks to show. Loosen a setting under More settings (for example, lower how far below the high a stock must be) and try again.</p>`;
+    html += r.recipe === "custom"
+      ? `<p class="note">No stocks passed all your filters. The list above shows how many dropped out at each step: loosen the filter at the step where they ran out, then search again.</p>`
+      : `<p class="note">No stocks to show. Loosen a setting under More settings (for example, lower how far below the high a stock must be) and try again.</p>`;
   } else {
     html += `<h4>${shown.length < rows.length ? "The top " + shown.length + " of " + rows.length : plural(shown.length, "stock", "stocks")}</h4>
       <p class="hint">The most conditions met come first; the score only breaks ties. Tick the ones to look at more closely. This is a quick check in code: it does not read filings, news or the debate.</p>

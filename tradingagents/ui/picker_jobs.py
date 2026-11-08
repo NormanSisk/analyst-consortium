@@ -17,6 +17,7 @@ from dataclasses import dataclass, field
 from datetime import date, datetime
 from pathlib import Path
 
+from tradingagents.picker import custom as custom_tools
 from tradingagents.picker import ledger, lists, quicklook, report
 from tradingagents.picker import scoreboard as board_tools
 from tradingagents.picker.cache import FundamentalsCache
@@ -49,6 +50,9 @@ RECIPES = (
     {"id": "list", "label": "Your own list",
      "help": "Type or load symbols and get the same checks on each one. A handful takes about half a minute; "
              "stocks already looked at today are quicker."},
+    {"id": "custom", "label": "Custom search",
+     "help": "Choose your own filters: size, price, valuation, growth, profits, debt, who owns it and more. Every filter is optional; "
+             "a blank one means no filter. Takes about a minute."},
 )
 
 
@@ -64,6 +68,7 @@ class SearchJob:
     symbols: list[str] | None
     skipped: list[str]
     record: bool
+    query: custom_tools.CustomQuery | None = None       # the filters of a custom search
     state: str = "running"                      # running, done or failed
     started: float = 0.0
     finished: float | None = None
@@ -94,7 +99,14 @@ class PickerManager:
         with self._lock:
             latest = self._jobs[-1].id if self._jobs else None
         return {"recipes": list(RECIPES), "settings": settings, "busy": self.busy(), "latest": latest,
-                "ledger_path": str(self.folder / "picks.csv") if self.folder else None, "max_text": MAX_TEXT, "log": self.log_summary()}
+                "ledger_path": str(self.folder / "picks.csv") if self.folder else None, "max_text": MAX_TEXT, "log": self.log_summary(),
+                "custom": custom_tools.spec_for_page()}
+
+    def count(self, custom_request: dict | None) -> dict:
+        """How many stocks Yahoo says match the filters so far (one cheap call; the code-side filters are not counted)."""
+        query = custom_tools.from_request(custom_request)
+        total = self._provider_now().count(custom_tools.yahoo_terms(query), list(query.sectors))
+        return {"matches": total}
 
     # ---- the picks log and how its stocks did
     def log_summary(self) -> dict:
@@ -126,14 +138,19 @@ class PickerManager:
             return any(j.state == "running" for j in self._jobs)
 
     # ---- starting
-    def start(self, recipe: str, text: str = "", overrides: dict | None = None, record: bool = True) -> dict:
+    def start(self, recipe: str, text: str = "", overrides: dict | None = None, record: bool = True,
+              custom_request: dict | None = None) -> dict:
         """Check the request and start the search; ValueError (in plain words) when it cannot run, SearchBusy when one is running."""
         if recipe not in quicklook.RECIPES:
-            raise ValueError("Choose Beaten-down quality or Your own list.")
+            raise ValueError("Choose Beaten-down quality, Your own list or Custom search.")
         overrides = dict(overrides or {})
         symbols: list[str] | None = None
         skipped: list[str] = []
-        if recipe == "list":
+        query = None
+        if recipe == "custom":
+            query = custom_tools.from_request(custom_request)
+            overrides = {"top": query.show}              # a custom search's own limits; the screening settings do not apply
+        elif recipe == "list":
             if len(text) > MAX_TEXT:
                 raise ValueError("That is too much text for a list of stocks (the limit is about 1 MB). Keep it to a few hundred symbols.")
             symbols, skipped = lists.parse_symbols(text)
@@ -148,7 +165,7 @@ class PickerManager:
                 raise SearchBusy("A search is already running. Wait for it to finish.")
             stamp = datetime.fromtimestamp(self._now()).strftime("%Y%m%d-%H%M%S")
             job = SearchJob(id=f"p{stamp}-{secrets.token_hex(2)}", recipe=recipe, settings=settings, symbols=symbols, skipped=skipped,
-                            record=bool(record), started=self._now())
+                            record=bool(record), query=query, started=self._now())
             self._jobs.append(job)
             del self._jobs[:-self._keep]
         if skipped:
@@ -166,8 +183,9 @@ class PickerManager:
     def _work(self, job: SearchJob) -> None:
         try:
             cache = FundamentalsCache(self.folder / "cache" if self.folder else None, date.today())
+            extra = {"query": job.query} if job.query is not None else {}
             result = self._run_recipe(job.recipe, self._provider_now(), job.settings, symbols=job.symbols, cache=cache,
-                                      workers=self._workers, log=job.messages.append)
+                                      workers=self._workers, log=job.messages.append, **extra)
             job.pick = result
             job.result = {**report.to_json(result), "top": job.settings.top, "condition_titles": dict(TITLES)}
             if job.record and result.rows and self.folder is not None:

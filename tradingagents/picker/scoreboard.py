@@ -25,7 +25,7 @@ from tradingagents.picker.quicklook import MARKET, PickerError
 HORIZONS = (5, 21, 63)                      # trading sessions after the day a stock was shown
 FIRST_READ = 21                             # the horizon the verdict looks at first
 ENOUGH_STOCKS, ENOUGH_LISTS = 30, 4         # below either, the verdict says it is too early
-RECIPE_NAMES = {"beaten-down": "Beaten-down quality", "list": "Your own lists"}
+RECIPE_NAMES = {"beaten-down": "Beaten-down quality", "list": "Your own lists", "custom": "Your own searches"}
 YARDSTICK = ("The yardstick is the S&P 500 over the same days. These stocks are usually more volatile than the index, so in a rising "
              "market they tend to beat it and in a falling market to trail it, whether or not the picker adds anything.")
 

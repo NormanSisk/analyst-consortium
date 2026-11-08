@@ -17,6 +17,7 @@ import pandas as pd
 
 from tradingagents.dataflows.vendors.yahoo import market_context as mc
 from tradingagents.picker import conditions as cond
+from tradingagents.picker import custom
 from tradingagents.picker.cache import FundamentalsCache
 from tradingagents.picker.facts import Facts, build_facts
 from tradingagents.picker.providers import Provider
@@ -24,7 +25,8 @@ from tradingagents.picker.settings import PickerSettings
 from tradingagents.picker.stage_a import MarketState, PriceMetrics, Window, market_state, price_metrics, sector_windows
 
 MARKET, VIX = "^GSPC", "^VIX"
-RECIPES = ("beaten-down", "list")
+RECIPES = ("beaten-down", "list", "custom")
+EXTRA_FACTS = ("trailing_pe", "dividend_yield", "price_to_book", "analyst_rating")        # from the screener's answer, shown when it has them
 MAX_LIST = 300                       # the most stocks a named list may hold
 
 
@@ -50,6 +52,7 @@ class PickRow:
     met: int = 0
     score: float = 0.0
     note: str = ""
+    extras: dict = field(default_factory=dict)
 
     @property
     def failed(self) -> list[cond.Condition]:
@@ -79,6 +82,8 @@ class PickResult:
     settings: PickerSettings
     treasury: float | None = None
     warnings: list[str] = field(default_factory=list)
+    filters: list[str] = field(default_factory=list)       # what a custom search asked for, in plain lines
+    query: dict | None = None                              # the same, as a small dict for the picks log
 
 
 def _sector_etf(facts: Facts) -> tuple[str, str] | None:
@@ -146,14 +151,25 @@ def _fetch_all(provider: Provider, symbols: list[str], cache: FundamentalsCache,
 
 def run(recipe: str, provider: Provider, settings: PickerSettings, symbols: list[str] | None = None,
         cache: FundamentalsCache | None = None, workers: int = 6, refresh: bool = False,
-        log: Callable[[str], None] = lambda message: None) -> PickResult:
-    """Screen or check stocks and return them ranked. ``symbols`` is required for the "list" recipe."""
+        log: Callable[[str], None] = lambda message: None, query: custom.CustomQuery | None = None) -> PickResult:
+    """Screen or check stocks and return them ranked. ``symbols`` is required for the "list" recipe, ``query`` for "custom"."""
     settings = settings.validated()
     if recipe not in RECIPES:
         raise PickerError(f"unknown recipe {recipe!r}; choose from {', '.join(RECIPES)}")
+    if recipe == "custom" and query is None:
+        raise PickerError("a custom search needs its filters")
     cache = cache or FundamentalsCache(None, date.today())
+    first_steps: list[tuple[str, int]] = []
+    described = {"filters": custom.describe(query), "query": custom.summary(query)} if recipe == "custom" else {}
 
-    if recipe == "list":
+    if recipe == "custom":
+        log("Searching Yahoo's free screener with your filters...")
+        found = provider.screen(custom.yahoo_terms(query), list(query.sectors or custom.SECTORS), query.examine)
+        universe = [u for u in found if custom.passes_quote(u, query)]
+        first_steps.append(("Stocks matching your filters at Yahoo", len(found)))
+        if query.has("quote") or query.exclude:
+            first_steps.append(("After your forward P/E, analyst rating and leave-out filters", len(universe)))
+    elif recipe == "list":
         symbols = list(dict.fromkeys(symbols or []))
         if not symbols:
             raise PickerError("name at least one stock")
@@ -167,9 +183,10 @@ def run(recipe: str, provider: Provider, settings: PickerSettings, symbols: list
         if not universe:
             raise PickerError("the screener returned no stocks; try again, or lower the size and volume limits")
     record = {u["symbol"]: u for u in universe}
-    funnel: list[tuple[str, int]] = [("Stocks to look at", len(record))]
+    funnel: list[tuple[str, int]] = first_steps or [("Stocks to look at", len(record))]
 
-    log(f"Downloading prices for {len(record)} stocks...")
+    if recipe != "custom" or record:
+        log(f"Downloading prices for {len(record)} stocks...")
     closes = provider.closes([*record, MARKET, VIX])
     market = closes.get(MARKET)
     if market is None or len(market) < 120:
@@ -181,7 +198,8 @@ def run(recipe: str, provider: Provider, settings: PickerSettings, symbols: list
     as_of = max((m.as_of for m in metrics.values() if m), default=None)
     warnings: list[str] = []
     if len(have) < len(record):
-        warnings.append(f"{len(record) - len(have)} stocks had too little price history and were skipped.")
+        missing = len(record) - len(have)
+        warnings.append(f"{missing} {'stock' if missing == 1 else 'stocks'} had too little price history and {'was' if missing == 1 else 'were'} skipped.")
 
     if recipe == "beaten-down":
         down = [s for s in have if metrics[s].off_high <= -settings.below_high]
@@ -191,10 +209,18 @@ def run(recipe: str, provider: Provider, settings: PickerSettings, symbols: list
         survivors = sorted(explained, key=lambda s: metrics[s].off_high)[:settings.carry]
         if len(explained) > settings.carry:
             warnings.append(f"{len(explained)} stocks passed; only the {settings.carry} deepest below their highs were checked further.")
+    elif recipe == "custom":
+        kept = [s for s in have if custom.passes_price(metrics[s], query, settings)]
+        if query.has("price"):
+            funnel.append(("After your price filters", len(kept)))
+        survivors = sorted(kept, key=lambda s: custom.stage_key(query.sort, record[s], metrics[s]))[:query.check]
+        if len(kept) > query.check:
+            warnings.append(f"{len(kept)} stocks passed your filters; only the {query.check} that come first in your chosen order were checked "
+                            "in depth. Narrow your filters or raise \"How many to check in depth\" to see more.")
     else:
         survivors = have
     if not survivors:
-        return PickResult(recipe, as_of, state, funnel, [], settings, None, warnings)
+        return PickResult(recipe, as_of, state, funnel, [], settings, None, warnings, **described)
 
     log(f"Checking the fundamentals of {len(survivors)} stocks...")
     raws = _fetch_all(provider, survivors, cache, workers, refresh, log)
@@ -243,12 +269,19 @@ def run(recipe: str, provider: Provider, settings: PickerSettings, symbols: list
                             industry=f.industry, price=m.price, market_cap=f.market_cap or record[symbol].get("market_cap"),
                             metrics=m, facts=f, conditions=conditions, sector_label=etf[0] if etf else "", sector_windows=windows,
                             peers=label, low_pe_limit=settings.low_pe_flag, met=sum(c.met for c in conditions.values()),
-                            note=f"data trouble: {error}" if error else ""))
+                            note=f"data trouble: {error}" if error else "",
+                            extras={k: record[symbol][k] for k in EXTRA_FACTS if record[symbol].get(k) is not None}))
     _score(rows)
-    rows.sort(key=lambda r: (-r.met, -r.score, r.metrics.off_high if r.metrics else 0))
     funnel.append(("Fundamentals checked", len(rows)))
+    if recipe == "custom":
+        if query.min_conditions:
+            rows = [r for r in rows if r.met >= query.min_conditions]
+            funnel.append((f"Meeting at least {query.min_conditions} of 5 conditions", len(rows)))
+        rows.sort(key=lambda r: custom.final_key(query.sort, r))
+    else:
+        rows.sort(key=lambda r: (-r.met, -r.score, r.metrics.off_high if r.metrics else 0))
     funnel.append(("Meeting at least 4 of 5 conditions", sum(r.met >= 4 for r in rows)))
     funnel.append(("Meeting all 5", sum(r.met == 5 for r in rows)))
     if not market_condition.met:
         warnings.append("The market is not in a drawdown today, so condition (a) fails for every stock: 4 of 5 is the most any can meet.")
-    return PickResult(recipe, as_of, state, funnel, rows, settings, treasury, warnings)
+    return PickResult(recipe, as_of, state, funnel, rows, settings, treasury, warnings, **described)

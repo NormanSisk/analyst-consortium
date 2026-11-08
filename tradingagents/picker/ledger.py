@@ -27,7 +27,8 @@ def _row(result: PickResult, rank: int, row, logged_at: str) -> list:
             f"{m.w63.share:.2f}" if m and m.w63.share is not None else "", f"{m.w21.share:.2f}" if m and m.w21.share is not None else "",
             f"{row.facts.forward_pe:.1f}" if row.facts and row.facts.forward_pe else "",
             json.dumps({"below_high": result.settings.below_high, "share_63": result.settings.share_63,
-                        "share_21": result.settings.share_21, "min_market_cap": result.settings.min_market_cap})]
+                        "share_21": result.settings.share_21, "min_market_cap": result.settings.min_market_cap,
+                        **({"custom": result.query} if result.query else {})})]       # a custom search's filters, to trace winners to them
 
 
 def append_picks(path: str | Path, result: PickResult, top: int | None = None, now: datetime | None = None) -> int:

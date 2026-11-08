@@ -49,7 +49,20 @@ def screen_universe(min_cap: float, min_volume: float, limit: int, region: str =
              yf.EquityQuery("gt", ["avgdailyvol3m", float(min_volume)])]
     if sector:
         terms.append(yf.EquityQuery("eq", ["sector", sector]))
-    query = yf.EquityQuery("and", terms)
+    return _run_query(yf.EquityQuery("and", terms), limit, sector or "")
+
+
+def _rating(text) -> float | None:
+    """The number in Yahoo's average analyst rating, such as '1.8 - Buy' (1 is strong buy, 5 is sell)."""
+    try:
+        return float(str(text).split()[0])
+    except (ValueError, IndexError):
+        return None
+
+
+def _run_query(query, limit: int, sector: str) -> list[dict]:
+    """Page through the screener's answer for one query, largest company first; each stock carries what the quick look and the
+    custom search need from the answer (names, size, P/Es, dividend yield, analyst rating)."""
     out: list[dict] = []
     offset = 0
     while len(out) < limit:
@@ -63,12 +76,48 @@ def screen_universe(min_cap: float, min_volume: float, limit: int, region: str =
             if quote.get("quoteType", "EQUITY") == "EQUITY" and _PLAIN_SYMBOL.match(symbol):
                 out.append({"symbol": symbol, "name": quote.get("shortName") or quote.get("longName") or "",
                             "market_cap": quote.get("marketCap"), "price": quote.get("regularMarketPrice"),
-                            "avg_volume": quote.get("averageDailyVolume3Month"), "sector": sector or "",
-                            "forward_pe": quote.get("forwardPE"), "trailing_pe": quote.get("trailingPE")})
+                            "avg_volume": quote.get("averageDailyVolume3Month"), "sector": sector,
+                            "forward_pe": quote.get("forwardPE"), "trailing_pe": quote.get("trailingPE"),
+                            "dividend_yield": quote.get("dividendYield"), "price_to_book": quote.get("priceToBook"),
+                            "analyst_rating": _rating(quote.get("averageAnalystRating"))})
         offset += len(quotes)
         if offset >= int(answer.get("total") or 0):
             break
     return out[:limit]
+
+
+def _custom_query(terms: list[tuple]):
+    """Yahoo's query from neutral terms such as ("gte", "intradaymarketcap", 2e9) or ("is-in", "sector", "Energy", "Utilities")."""
+    built = []
+    for op, name, *values in terms:
+        if op in ("eq", "gt", "gte", "lt", "lte") and len(values) == 1:
+            built.append(yf.EquityQuery(op, [name, values[0]]))
+        elif op == "btwn" and len(values) == 2:
+            built.append(yf.EquityQuery("btwn", [name, values[0], values[1]]))
+        elif op == "is-in" and values:
+            built.append(yf.EquityQuery("is-in", [name, *values]))
+        else:
+            raise ValueError(f"cannot turn {op!r} on {name!r} into a Yahoo query")
+    return built[0] if len(built) == 1 else yf.EquityQuery("and", built)
+
+
+def screen_custom(terms: list[tuple], sectors: list[str] | tuple[str, ...], limit: int) -> list[dict]:
+    """Stocks matching ``terms``, one screener query per sector so every stock carries its sector; the ``limit`` largest overall."""
+    merged: dict[str, dict] = {}
+    for sector in sectors:
+        for record in _run_query(_custom_query([*terms, ("eq", "sector", sector)]), limit, sector):
+            merged.setdefault(record["symbol"], record)
+    return sorted(merged.values(), key=lambda r: r.get("market_cap") or 0, reverse=True)[:limit]
+
+
+def count_matches(terms: list[tuple], sectors: list[str] | tuple[str, ...] = ()) -> int:
+    """How many stocks Yahoo says match ``terms`` (one cheap call per sector asked for, or one call for all of them)."""
+    queries = [_custom_query([*terms, ("eq", "sector", s)]) for s in sectors] or [_custom_query(terms)]
+    total = 0
+    for query in queries:
+        answer = yf_retry(lambda query=query: yf.screen(query, sortField="intradaymarketcap", sortAsc=False, size=1, offset=0))
+        total += int((answer or {}).get("total") or 0)
+    return total
 
 
 def screen_universe_with_sectors(min_cap: float, min_volume: float, limit: int, region: str = "us") -> list[dict]:

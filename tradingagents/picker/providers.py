@@ -29,6 +29,12 @@ class Provider(Protocol):
     def industry_forward_pes(self, industry: str, settings: PickerSettings) -> list[float]:
         """Forward P/Es of the stocks in one industry, for a peer median."""
 
+    def screen(self, terms: list[tuple], sectors: list[str], limit: int) -> list[dict]:
+        """Stocks matching neutral screener terms (see ``custom.yahoo_terms``), the ``limit`` largest, each with its sector."""
+
+    def count(self, terms: list[tuple], sectors: list[str]) -> int:
+        """How many stocks match the terms (one cheap call), for the page's "how many match so far" button."""
+
 
 class YahooProvider:
     """Yahoo Finance through yfinance (the downloads live in the data layer)."""
@@ -58,3 +64,13 @@ class YahooProvider:
         from tradingagents.dataflows.vendors.yahoo import picker_data
 
         return picker_data.industry_forward_pes(industry, settings.min_market_cap, settings.min_avg_volume, settings.region)
+
+    def screen(self, terms: list[tuple], sectors: list[str], limit: int) -> list[dict]:
+        from tradingagents.dataflows.vendors.yahoo import picker_data
+
+        return picker_data.screen_custom(terms, sectors, limit)
+
+    def count(self, terms: list[tuple], sectors: list[str]) -> int:
+        from tradingagents.dataflows.vendors.yahoo import picker_data
+
+        return picker_data.count_matches(terms, sectors)

@@ -73,8 +73,11 @@ def raw(symbol: str = "AAA", **info) -> dict:
 class FakeProvider:
     """A provider that hands the picker made-up data and records what it was asked for."""
 
-    def __init__(self, universe=None, closes=None, raws=None, treasury: float | None = 4.8, industry_pes=None, fail=()):
+    def __init__(self, universe=None, closes=None, raws=None, treasury: float | None = 4.8, industry_pes=None, fail=(), matches: int = 0):
         self._universe = universe or []
+        self._matches = matches
+        self.screen_calls: list[tuple] = []
+        self.count_calls: list[tuple] = []
         self._closes = closes or {}
         self._raws = raws or {}
         self._treasury = treasury
@@ -101,6 +104,15 @@ class FakeProvider:
 
     def industry_forward_pes(self, industry, settings):
         return list(self._industry_pes.get(industry, []))
+
+    def screen(self, terms, sectors, limit):
+        """What a custom search asks Yahoo for is recorded; the answer is the made-up universe, the largest first."""
+        self.screen_calls.append((list(terms), list(sectors), limit))
+        return sorted(copy.deepcopy(self._universe), key=lambda r: r.get("market_cap") or 0, reverse=True)[:limit]
+
+    def count(self, terms, sectors):
+        self.count_calls.append((list(terms), list(sectors)))
+        return self._matches
 
 
 def record(symbol: str, forward_pe: float = 12.0) -> dict:

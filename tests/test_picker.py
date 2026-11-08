@@ -379,7 +379,7 @@ class TestBeatenDownRecipe:
             "Market explains the fall (the analysis's thresholds)": 2, "Fundamentals checked": 2,
             "Meeting at least 4 of 5 conditions": 2, "Meeting all 5": 1}
         assert result.as_of == w.AS_OF and result.market.label in ("pullback", "correction", "bear market") and result.treasury == 4.8
-        assert any("1 stocks had too little price history" in x or "stocks had too little price history" in x for x in result.warnings)
+        assert any("1 stock had too little price history and was skipped" in x for x in result.warnings)
 
     def test_the_good_stock_meets_all_five_and_the_deteriorating_one_does_not(self):
         rows = {r.symbol: r for r in run_beaten().rows}
@@ -457,7 +457,7 @@ class TestListRecipe:
     def test_every_stock_you_name_is_checked_whether_or_not_it_fell(self):
         result = quicklook.run("list", w.pullback_world(), S, symbols=["GOOD", "FLAT", "NOPE", "GOOD"])
         assert dict(result.funnel)["Stocks to look at"] == 3 and {r.symbol for r in result.rows} == {"GOOD", "FLAT"}
-        assert any("1 stocks had too little price history" in x or "had too little price history" in x for x in result.warnings)
+        assert any("1 stock had too little price history and was skipped" in x for x in result.warnings)
         assert next(r for r in result.rows if r.symbol == "FLAT").conditions["b"].status == cond.FAIL
 
     def test_errors(self):

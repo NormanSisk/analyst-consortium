@@ -75,7 +75,19 @@
           </div>
         </fieldset>
 
-        <details class="advanced">
+        <fieldset class="block" id="f-custom-block" hidden>
+          <legend>Your filters</legend>
+          <p class="hint">Every filter is optional, and a blank one means no filter. Most are answered by Yahoo's free screener; the forward P/E, analyst rating and price filters are applied afterward. Stocks that pass are checked against the same five deal conditions as in the other searches. Open a group below to set filters.</p>
+          <div id="c-groups"></div>
+          <div class="row">
+            <button type="button" class="secondary" id="c-count">How many match so far?</button>
+            <button type="button" class="secondary" id="c-clear">Clear every filter</button>
+            <button type="button" class="secondary" id="c-reset">Back to the usual starting point</button>
+          </div>
+          <p class="result" id="c-count-text" role="status" aria-live="polite"></p>
+        </fieldset>
+
+        <details class="advanced" id="f-more">
           <summary><span class="btn-like secondary">More settings</span><span class="hint-inline">How far down, how big, how many to show</span></summary>
           <div class="grid" id="f-settings"></div>
           <div class="row"><button type="button" class="secondary" id="f-reset">Back to the usual settings</button></div>
@@ -276,6 +288,7 @@
 <script src="/static/app.js"></script>
 <script src="/static/runs.js"></script>
 <script src="/static/picker.js"></script>
+<script src="/static/custom.js"></script>
 <script src="/static/board.js"></script>
 </body>
 </html>

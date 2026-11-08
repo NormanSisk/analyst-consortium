@@ -3,6 +3,7 @@
 No network and no cost: the picker runs against the made-up markets in tests/picker_world.py, and the page is checked as
 text (its ids, that it uses no inline code, and that every id the script reaches for exists)."""
 
+import json
 import re
 import socket
 import threading
@@ -51,15 +52,20 @@ def manager(tmp_path, provider=None, **kw):
 
 @pytest.mark.unit
 class TestOptions:
-    def test_the_page_is_offered_two_recipes_and_the_few_settings_it_may_change(self, tmp_path):
+    def test_the_page_is_offered_three_recipes_and_the_few_settings_it_may_change(self, tmp_path):
         o = manager(tmp_path).options()
-        assert [r["id"] for r in o["recipes"]] == ["beaten-down", "list"] and all(r["label"] and r["help"] for r in o["recipes"])
+        assert [r["id"] for r in o["recipes"]] == ["beaten-down", "list", "custom"] and all(r["label"] and r["help"] for r in o["recipes"])
         names = {s["name"]: s for s in o["settings"]}
         assert set(names) == {"below_high", "min_market_cap", "min_avg_volume", "universe_limit", "top"}
         assert names["below_high"]["default"] == 0.20 and names["below_high"]["scale"] == 100
         assert names["min_market_cap"]["default"] == 2e9 and names["top"]["default"] == 15
         assert all(s["for"] == ["beaten-down"] for s in o["settings"])        # none of them means anything for a named list
         assert o["busy"] is False and o["latest"] is None and o["ledger_path"].endswith("picks.csv")
+
+    def test_the_options_carry_the_catalog_the_custom_form_is_drawn_from(self, tmp_path):
+        from tradingagents.picker import custom as cu
+
+        assert manager(tmp_path).options()["custom"] == cu.spec_for_page()
 
     def test_a_manager_without_a_folder_has_no_log_to_name(self):
         m = pj.PickerManager(None, w.pullback_world())
@@ -128,6 +134,63 @@ class TestSearching:
         m = manager(tmp_path, keep=2)
         ids = [wait_done(m, m.start("list", "GOOD")["id"])["id"] for _ in range(3)]
         assert m.get(ids[0]) is None and m.get(ids[1]) and m.get(ids[2])
+
+
+@pytest.mark.unit
+class TestCustomSearching:
+    def custom_manager(self, tmp_path, **kw):
+        from tests.test_picker_custom import world
+
+        return manager(tmp_path, world(), **kw)
+
+    def test_a_custom_search_runs_with_its_filters_and_shows_what_was_asked(self, tmp_path):
+        m = self.custom_manager(tmp_path)
+        started = m.start("custom", custom_request={"ranges": {"forward_pe": {"min": None, "max": 15}}, "show": 10})
+        assert started["recipe"] == "custom"
+        job = wait_done(m, started["id"])
+        result = job["result"]
+        assert job["state"] == "done" and result["recipe"] == "custom" and result["top"] == 10
+        assert sorted(r["symbol"] for r in result["rows"]) == ["GOOD", "OWN"] and result["filters"][1].startswith("Forward P/E: at most 15")
+        assert result["rows"][0]["analyst_rating"] == 1.8 and result["funnel"][0]["step"] == "Stocks matching your filters at Yahoo"
+        assert any("Searching Yahoo's free screener" in x for x in job["messages"])
+
+    def test_a_custom_search_is_recorded_with_its_filters_and_saved_as_csv(self, tmp_path):
+        m = self.custom_manager(tmp_path)
+        job = wait_done(m, m.start("custom", custom_request={"flags": ["market_explains"]})["id"])
+        saved = ledger.read_picks(tmp_path / "picker" / "picks.csv")
+        assert job["recorded"] == len(saved) == 2 and {r["recipe"] for r in saved} == {"custom"}
+        assert json.loads(saved[0]["settings"])["custom"]["flags"] == ["market_explains"]
+        assert b"analyst_rating" in m.csv(job["id"])
+
+    def test_an_empty_custom_search_is_an_answer_and_is_not_recorded(self, tmp_path):
+        provider = w.pullback_world()
+        provider._universe = []
+        m = manager(tmp_path, provider)
+        job = wait_done(m, m.start("custom", custom_request={})["id"])
+        assert job["state"] == "done" and job["result"]["rows"] == [] and job["recorded"] == 0
+
+    @pytest.mark.parametrize("request_, words", [
+        ({"ranges": {"wizard": {"min": 1}}}, "unknown filter"),
+        ({"ranges": {"beta": {"min": 3, "max": 1}}}, "above the largest"),
+        ({"sectors": ["Crypto"]}, "unknown sector"),
+        ({"sort": "luck"}, "Choose one of the ways"),
+        ({"show": 0}, "How many to show"),
+    ])
+    def test_a_bad_custom_request_is_refused_in_plain_words_and_starts_nothing(self, tmp_path, request_, words):
+        m = self.custom_manager(tmp_path)
+        with pytest.raises(ValueError, match=words):
+            m.start("custom", custom_request=request_)
+        assert m.options()["latest"] is None and not m.busy()
+
+    def test_the_count_asks_yahoo_once_with_the_same_terms_as_a_search(self, tmp_path):
+        provider = w.pullback_world()
+        provider._matches = 412
+        m = manager(tmp_path, provider)
+        assert m.count({"ranges": {"market_cap": {"min": 2, "max": None}}, "sectors": ["Energy"]}) == {"matches": 412}
+        terms, sectors = provider.count_calls[0]
+        assert ("gte", "intradaymarketcap", 2e9) in terms and sectors == ["Energy"] and provider.closes_calls == []
+        with pytest.raises(ValueError, match="unknown filter"):
+            m.count({"ranges": {"wizard": {"min": 1}}})
 
 
 @pytest.mark.unit
@@ -298,6 +361,56 @@ class TestEndpoints:
 
 
 @pytest.mark.unit
+class TestCustomEndpoints:
+    def custom_api(self, tmp_path, matches=0):
+        from tests.test_picker_custom import world
+
+        provider = world()
+        provider._matches = matches
+        return api(tmp_path, provider)
+
+    def test_a_custom_search_is_started_and_followed_like_any_other(self, tmp_path):
+        c = self.custom_api(tmp_path)
+        r = c.post("/api/picker/run", headers=HEADERS, json={"recipe": "custom", "record": False, "custom": {
+            "ranges": {"forward_pe": {"min": None, "max": 15}}, "flags": [], "sectors": [], "otc": False, "exclude": "", "min_conditions": None,
+            "sort": "conditions", "examine": None, "check": None, "show": None}})
+        assert r.status_code == 202
+        job = wait_done(c.app.state.picker, r.json()["id"])
+        assert sorted(x["symbol"] for x in c.get(f"/api/picker/jobs/{r.json()['id']}", headers=HEADERS).json()["result"]["rows"]) == ["GOOD", "OWN"]
+        assert job["state"] == "done"
+
+    def test_a_custom_search_needs_its_filters_object_to_be_well_formed(self, tmp_path):
+        c = self.custom_api(tmp_path)
+        for bad in ({"wizard": 1}, {"ranges": {"beta": {"mean": 2}}}, {"ranges": {"beta": {"min": "tall"}}}, {"flags": "profitable"}, {"min_conditions": "all"}):
+            assert c.post("/api/picker/run", headers=HEADERS, json={"recipe": "custom", "custom": bad}).status_code == 422
+        assert c.app.state.picker.options()["latest"] is None
+
+    def test_a_filter_that_makes_no_sense_is_a_plain_422(self, tmp_path):
+        r = self.custom_api(tmp_path).post("/api/picker/run", headers=HEADERS, json={"recipe": "custom", "custom": {"ranges": {"beta": {"min": 3, "max": 1}}}})
+        assert r.status_code == 422 and "above the largest" in r.json()["detail"]
+
+    def test_the_count_endpoint_needs_the_token_and_answers_with_a_number(self, tmp_path):
+        c = self.custom_api(tmp_path, matches=77)
+        assert c.post("/api/picker/count", json={"custom": {}}).status_code == 401
+        assert c.post("/api/picker/count", json={"custom": {}}, headers={**HEADERS, "Origin": "https://evil.example.com"}).status_code == 403
+        r = c.post("/api/picker/count", headers=HEADERS, json={"custom": {"ranges": {"market_cap": {"min": 2}}}})
+        assert r.status_code == 200 and r.json() == {"matches": 77}
+        assert c.post("/api/picker/count", headers=HEADERS, json={}).json() == {"matches": 77}               # no filters is a valid question
+
+    def test_a_bad_count_request_is_a_plain_422(self, tmp_path):
+        c = self.custom_api(tmp_path)
+        r = c.post("/api/picker/count", headers=HEADERS, json={"custom": {"ranges": {"wizard": {"min": 1}}}})
+        assert r.status_code == 422 and "unknown filter" in r.json()["detail"]
+        assert c.post("/api/picker/count", headers=HEADERS, json={"custom": {"wizard": 1}}).status_code == 422
+
+    def test_yahoo_being_down_is_a_502_with_no_traceback(self, tmp_path):
+        provider = w.pullback_world()
+        provider.count = lambda terms, sectors: (_ for _ in ()).throw(OSError("secret-internal-detail"))
+        r = api(tmp_path, provider).post("/api/picker/count", headers=HEADERS, json={"custom": {}})
+        assert r.status_code == 502 and "OSError" in r.json()["detail"] and "secret-internal-detail" not in r.text
+
+
+@pytest.mark.unit
 class TestScoreboardEndpoints:
     def test_both_endpoints_need_the_token(self, tmp_path):
         c = api(tmp_path)
@@ -370,10 +483,12 @@ STATIC = Path(server.STATIC)
 HTML = (STATIC / "index.html").read_text(encoding="utf-8")
 SCRIPT = (STATIC / "picker.js").read_text(encoding="utf-8")
 BOARD = (STATIC / "board.js").read_text(encoding="utf-8")
+CUSTOM = (STATIC / "custom.js").read_text(encoding="utf-8")
 HTML_IDS = set(re.findall(r'\bid="([^"]+)"', HTML))
 # ids that the scripts write into the page themselves, after a search or a scoreboard
 MADE_BY_SCRIPT = {"f-results-h", "f-top", "f-clear", "f-send", "f-sendmsg", "f-save", "f-save-result", "f-save-error"}
 MADE_BY_BOARD = {"b-results-h", "b-save", "b-save-result", "b-save-error"}
+MADE_BY_CUSTOM = {"c-otc", "c-exclude", "c-minc", "c-sort"}
 
 
 @pytest.mark.unit
@@ -399,6 +514,30 @@ class TestThePage:
         for made in MADE_BY_BOARD - {"b-results-h"}:
             assert f'id="{made}"' in BOARD, made
         assert '"/api/picker/scoreboard"' in BOARD and '"/api/picker/scoreboard/csv"' in BOARD and "saveFile(" in BOARD
+
+    def test_the_custom_form_script_is_in_the_page_and_every_id_it_reaches_for_exists(self):
+        assert '<script src="/static/custom.js">' in HTML and HTML.index("picker.js") < HTML.index("custom.js") < HTML.index("board.js")
+        for needed in ("f-custom-block", "f-more", "c-groups", "c-count", "c-clear", "c-reset", "c-count-text"):
+            assert needed in HTML_IDS, needed
+        assert set(re.findall(r'\$\("([a-z0-9-]+)"\)', CUSTOM)) - HTML_IDS - MADE_BY_CUSTOM - {"cg-which"} == set()
+        for made in MADE_BY_CUSTOM:
+            assert f'id="{made}"' in CUSTOM, made
+        assert 'id="cg-${esc(g.id)}"' in CUSTOM                            # the group the form opens first is made from the catalog
+        for hook in ("fillCustom", "collectCustom"):                       # what picker.js calls into custom.js
+            assert f"function {hook}(" in CUSTOM and f"{hook}(" in SCRIPT, hook
+        assert '"/api/picker/count"' in CUSTOM
+
+    def test_the_custom_form_escapes_what_the_server_describes_and_the_script_stays_clean(self):
+        assert set(re.findall(r"\$\{([a-z]+\.[a-z_]+)\}", CUSTOM)) == set()        # every field from the catalog goes through esc()
+        for name in ("c.label", "c.unit", "c.help", "f.label", "f.help", "s)", "g.label", "g.id"):
+            assert f"esc({name}" in CUSTOM, name
+        assert " style=" not in CUSTOM and "eval(" not in CUSTOM and "document.write" not in CUSTOM and "localStorage" not in CUSTOM
+        assert 'class="side"' not in CUSTOM                                  # "side" is the left column's class; reusing it restyled every box
+        assert "X-Council-Token" not in CUSTOM and TOKEN not in CUSTOM
+
+    def test_a_custom_search_shows_what_was_asked_and_its_extra_facts(self):
+        assert "r.filters" in SCRIPT and "esc(f)" in SCRIPT and "r.analyst_rating" in SCRIPT and "r.trailing_pe" in SCRIPT
+        assert 'id="f-more"' in HTML and "$(\"f-more\").hidden" in SCRIPT                  # "More settings" only where some apply
 
     def test_what_the_scoreboard_shows_is_escaped_and_the_script_stays_clean(self):
         raw = re.findall(r"\$\{([a-z]\.[a-z_]+)\}", BOARD)

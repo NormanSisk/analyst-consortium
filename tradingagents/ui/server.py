@@ -87,6 +87,28 @@ class PickerSettingsIn(BaseModel):
     top: int | None = None
 
 
+class RangeIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    min: float | None = None
+    max: float | None = None
+
+
+class CustomIn(BaseModel):
+    """The filters of a custom search, in the units the form shows. ``picker.custom.from_request`` does the real checking."""
+
+    model_config = ConfigDict(extra="forbid")
+    ranges: dict[str, RangeIn] = Field(default_factory=dict, max_length=60)
+    flags: list[str] = Field(default_factory=list, max_length=10)
+    sectors: list[str] = Field(default_factory=list, max_length=12)
+    otc: bool = False
+    exclude: str = Field(default="", max_length=5000)
+    min_conditions: int | None = None
+    sort: str = Field(default="conditions", max_length=20)
+    examine: int | None = None
+    check: int | None = None
+    show: int | None = None
+
+
 class PickerRequest(BaseModel):
     """A stock search, as the page sends it. ``picker_jobs.PickerManager.start`` does the real checking."""
 
@@ -94,6 +116,11 @@ class PickerRequest(BaseModel):
     text: str = Field(default="", max_length=picker_jobs.MAX_TEXT * 2)
     settings: PickerSettingsIn = Field(default_factory=PickerSettingsIn)
     record: bool = True
+    custom: CustomIn | None = None
+
+
+class PickerCountRequest(BaseModel):
+    custom: CustomIn = Field(default_factory=CustomIn)
 
 
 class PickerExportRequest(BaseModel):
@@ -349,13 +376,24 @@ def create_app(token: str, dotenv_path: Path | None = None, port: int | None = N
     async def picker_run(body: PickerRequest):
         """Start a free stock search (no AI). One runs at a time; the page then polls ``/api/picker/jobs/{id}``."""
         overrides = body.settings.model_dump(exclude_none=True)
+        custom_request = body.custom.model_dump() if body.custom is not None else None
         try:
-            job = await run_in_threadpool(searcher().start, body.recipe, body.text, overrides, body.record)
+            job = await run_in_threadpool(lambda: searcher().start(body.recipe, body.text, overrides, body.record, custom_request))
         except picker_jobs.SearchBusy as exc:
             return JSONResponse({"detail": str(exc)}, status_code=409)
         except ValueError as exc:
             return JSONResponse({"detail": str(exc)}, status_code=422)
         return job
+
+    @app.post("/api/picker/count")
+    async def picker_count(body: PickerCountRequest):
+        """How many stocks Yahoo says match the filters so far: one cheap call, so the page can show the effect of a filter."""
+        try:
+            return await run_in_threadpool(searcher().count, body.custom.model_dump())
+        except ValueError as exc:
+            return JSONResponse({"detail": str(exc)}, status_code=422)
+        except Exception as exc:  # noqa: BLE001 - a plain sentence, never a traceback
+            return JSONResponse({"detail": f"Yahoo could not be asked just now ({type(exc).__name__}). Try again in a minute."}, status_code=502)
 
     @app.get("/api/picker/jobs/{job_id}")
     async def picker_job(job_id: str):
