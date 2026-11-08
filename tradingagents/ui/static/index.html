@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" data-theme="light" data-size="normal">
+<html lang="en" data-theme="light" data-size="normal" data-bg="market">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -37,6 +37,14 @@
           <button type="button" class="secondary" data-theme="dark" aria-pressed="false">Dark</button>
           <button type="button" class="secondary" data-theme="contrast" aria-pressed="false">High contrast</button>
         </div>
+      </fieldset>
+      <fieldset>
+        <legend>Background</legend>
+        <div class="row" id="backgrounds">
+          <button type="button" class="secondary" data-bg="market" aria-pressed="true">Market</button>
+          <button type="button" class="secondary" data-bg="plain" aria-pressed="false">Plain</button>
+        </div>
+        <p class="hint">A soft colour wash with a faint chart. It only shows around the panels, never behind text. High contrast is always plain.</p>
       </fieldset>
     </details>
     <p class="small">Analyst Council never places trades and is not financial advice. Built on <a href="https://github.com/TauricResearch/TradingAgents">TradingAgents</a> by Tauric Research (Apache-2.0).</p>

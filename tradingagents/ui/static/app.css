@@ -5,6 +5,8 @@
   --ok-bg:#dff3e4; --ok-fg:#0a3d1c; --warn-bg:#fff0b8; --warn-fg:#4a3200; --bad-bg:#fde1e1; --bad-fg:#6e0000;
   --off-bg:#e6e6e6; --off-fg:#1f1f1f; --skip-bg:#e1eafb; --skip-fg:#0e2a63;
   --border-w:2px;
+  /* Decoration only: it shows in the gaps around the solid panels, never behind text. */
+  --page-grad:linear-gradient(160deg,#e3efff 0%,#e2f5ea 52%,#fff2d2 100%); --page-img:url("/static/bg-market-light.svg");
 }
 [data-theme="dark"] {
   --bg:#0a0a0a; --panel:#171717; --text:#f5f5f5; --muted:#e0e0e0; --line:#f5f5f5; --focus:#ffd400;
@@ -12,6 +14,7 @@
   --ok-bg:#0f3a1d; --ok-fg:#c9f5d4; --warn-bg:#4a3a00; --warn-fg:#ffe9a0; --bad-bg:#5a0f0f; --bad-fg:#ffd1d1;
   --off-bg:#2c2c2c; --off-fg:#f0f0f0; --skip-bg:#14305e; --skip-fg:#d6e4ff;
   --border-w:2px;
+  --page-grad:linear-gradient(160deg,#061a33 0%,#082a26 52%,#2a2108 100%); --page-img:url("/static/bg-market-dark.svg");
 }
 [data-theme="contrast"] {
   --bg:#000000; --panel:#000000; --text:#ffffff; --muted:#ffffff; --line:#ffffff; --focus:#ffff00;
@@ -19,13 +22,19 @@
   --ok-bg:#000000; --ok-fg:#7cfc9a; --warn-bg:#000000; --warn-fg:#ffd400; --bad-bg:#000000; --bad-fg:#ff9a9a;
   --off-bg:#000000; --off-fg:#e6e6e6; --skip-bg:#000000; --skip-fg:#a9d0ff;
   --border-w:4px;
+  --page-grad:none; --page-img:none;      /* high contrast is always a plain black page */
 }
 html { font-size:20px; }
 html[data-size="small"] { font-size:17px; }
 html[data-size="large"] { font-size:24px; }
 html[data-size="xlarge"] { font-size:30px; }
 * { box-sizing:border-box; }
-body { margin:0; background:var(--bg); color:var(--text); font-family:system-ui,"Segoe UI",Roboto,Arial,sans-serif; line-height:1.6; overflow-wrap:anywhere; }
+/* A trading-themed backdrop: a soft gradient and a faint candlestick chart, with a thin colour bar on top. */
+html[data-bg="market"] body { background-image:var(--page-img), var(--page-grad); background-size:640px 400px, cover;
+  background-repeat:repeat, no-repeat; background-attachment:scroll, fixed; }
+html[data-bg="market"] body::before { content:""; display:block; height:6px; background:linear-gradient(90deg,#1b8a5a,#0b5fb0,#c98a00); }
+html[data-theme="contrast"] body::before { display:none; }
+body { margin:0; background-color:var(--bg); color:var(--text); font-family:system-ui,"Segoe UI",Roboto,Arial,sans-serif; line-height:1.6; overflow-wrap:anywhere; }
 .skip { position:absolute; left:-999px; top:0; background:var(--btn-bg); color:var(--btn-text); padding:.6rem 1rem; z-index:10; }
 .skip:focus { left:0; }
 a { color:var(--link); text-underline-offset:.2em; }

@@ -192,12 +192,14 @@ async function saveSettings(thenTest) {
 // ---------------------------------------------------------------- display options and events
 function pref(name, value) { try { if (value === undefined) return localStorage.getItem(name); localStorage.setItem(name, value); } catch (_) { /* storage blocked */ } return null; }
 function setSize(v) { document.documentElement.dataset.size = v; document.querySelectorAll("#sizes button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.size === v))); pref("ac-size", v); }
+function setBg(v) { document.documentElement.dataset.bg = v; document.querySelectorAll("#backgrounds button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.bg === v))); pref("ac-bg", v); }
 function setTheme(v) { document.documentElement.dataset.theme = v; document.querySelectorAll("#themes button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.theme === v))); pref("ac-theme", v); }
 
 document.addEventListener("click", e => {
   const t = e.target.closest("button"); if (!t) return;
   if (t.dataset.size) setSize(t.dataset.size);
   if (t.dataset.theme) setTheme(t.dataset.theme);
+  if (t.dataset.bg) setBg(t.dataset.bg);
   if (t.dataset.test) runChecks([t.dataset.test]);
   if (t.dataset.fix) { $("configure").open = true; const f = $(t.dataset.fix); if (f && !f.closest("[hidden]")) { f.scrollIntoView({block: "center"}); f.focus(); } }
 });
@@ -210,7 +212,7 @@ $("config-form").addEventListener("submit", e => { e.preventDefault(); saveSetti
 $("save-test").addEventListener("click", () => saveSettings(true));
 
 (async function init() {
-  setSize(pref("ac-size") || "normal"); setTheme(pref("ac-theme") || "light");
+  setSize(pref("ac-size") || "normal"); setTheme(pref("ac-theme") || "light"); setBg(pref("ac-bg") || "market");
   try { state = await api("/api/state"); fillForm(); }
   catch (e) { $("summary").innerHTML = `<p class="big">Could not start</p><p>${esc(e.message)}</p>`; return; }
   const ready = await runChecks(null);

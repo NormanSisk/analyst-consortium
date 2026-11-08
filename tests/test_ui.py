@@ -224,6 +224,27 @@ class TestApi:
         assert r.status_code == 200 and r.json()["ready"] is True and r.json()["results"][0]["id"] == "env.python"
         assert seen == {"offline": False, "live_ai": False, "ids": ["env.python"]}
 
+    def test_the_background_tiles_are_valid_images_served_from_this_server(self, dotenv):
+        import xml.etree.ElementTree as ET
+        c = client(dotenv)
+        for name in ("bg-market-light.svg", "bg-market-dark.svg"):
+            r = c.get(f"/static/{name}")
+            assert r.status_code == 200 and r.headers["content-type"].startswith("image/svg+xml")
+            root = ET.fromstring(r.text)                          # well-formed
+            assert root.tag.endswith("svg") and "<script" not in r.text and "http://" not in r.text.replace("http://www.w3.org/2000/svg", "")
+
+    def test_the_decoration_never_applies_to_high_contrast_and_can_be_switched_off(self):
+        from pathlib import Path
+        css = (Path(server.STATIC) / "app.css").read_text(encoding="utf-8")
+        html = (Path(server.STATIC) / "index.html").read_text(encoding="utf-8")
+        js = (Path(server.STATIC) / "app.js").read_text(encoding="utf-8")
+        contrast = re.search(r'\[data-theme="contrast"\]\s*\{(.*?)\}', css, re.S).group(1)
+        assert "--page-img:none" in contrast and "--page-grad:none" in contrast
+        assert 'html[data-theme="contrast"] body::before { display:none; }' in css
+        assert 'html[data-bg="market"] body' in css                      # the picture shows only in market mode
+        assert 'data-bg="plain"' in html and 'data-bg="market"' in html and 'setBg(' in js
+        assert "http" not in css.replace("http://www.w3.org", "")        # no remote images or fonts
+
     def test_the_static_files_are_served(self, dotenv):
         c = client(dotenv)
         assert "council-token" in c.get("/").text
