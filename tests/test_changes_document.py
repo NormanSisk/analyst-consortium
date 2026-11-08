@@ -166,5 +166,10 @@ class TestTheDocument:
         assert "(CHANGES-FROM-UPSTREAM.md)" in readme[:1200] and "modified version of" in readme[:1200]
         notice = (ROOT / "NOTICE").read_text(encoding="utf-8")
         for needed in ("modified version of TradingAgents", "https://github.com/TauricResearch/TradingAgents", "Apache License, Version 2.0",
-                       "c454491", "CHANGES-FROM-UPSTREAM.md", "not affiliated with or endorsed by Tauric Research"):
+                       "c454491", "CHANGES-FROM-UPSTREAM.md", "not affiliated with or endorsed by Tauric Research",
+                       "Copyright 2026 Norman R. Sisk, for the changes and additions", "The original code remains the work of its authors"):
             assert re.sub(r"\s+", " ", notice).find(needed) >= 0, needed
+
+    def test_the_copyright_for_our_additions_is_named_the_same_way_in_the_notice_and_the_page(self, narrative):
+        assert "copyright 2026 Norman R. Sisk and under the same license" in narrative
+        assert "the original code remains its authors'" in narrative

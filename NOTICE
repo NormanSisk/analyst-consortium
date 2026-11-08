@@ -8,6 +8,10 @@ It was started from TradingAgents v0.7.1 (commit c454491, 2026-10-27). We change
 some of the original files and added many new ones. CHANGES-FROM-UPSTREAM.md says
 what changed and lists every changed and added file.
 
+Copyright 2026 Norman R. Sisk, for the changes and additions described in
+CHANGES-FROM-UPSTREAM.md, licensed under the Apache License, Version 2.0, like the
+original. The original code remains the work of its authors.
+
 "TradingAgents" and "Tauric Research" are the names of that project and its
 authors. They are used here only to say where this work came from. This product is
 not affiliated with or endorsed by Tauric Research, and it does not use their logo.

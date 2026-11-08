@@ -3,7 +3,7 @@
 **Analyst Consortium** is a modified version of [TradingAgents](https://github.com/TauricResearch/TradingAgents) by Tauric Research. This page says what we changed and what we added, so that anyone can tell the original from our work. It is also the notice that the Apache License 2.0 (section 4) asks a modified version to carry.
 
 - **Started from:** TradingAgents v0.7.1, commit `c454491` (2026-10-27).
-- **License:** unchanged, Apache License 2.0. See `LICENSE` and `NOTICE`.
+- **License:** unchanged, Apache License 2.0. Our changes and additions are copyright 2026 Norman R. Sisk and under the same license; the original code remains its authors'. See `LICENSE` and `NOTICE`.
 - **Not affiliated with Tauric Research.** "TradingAgents" and "Tauric Research" are the names of that project and its authors. We use them only to say where this came from, and we do not use their logo.
 - **Not financial advice.** This is a research tool. It never places a trade, and nothing it says is a recommendation to buy or sell. We have not shown that any of these changes improves investment results (see "What we measured" below).
 
