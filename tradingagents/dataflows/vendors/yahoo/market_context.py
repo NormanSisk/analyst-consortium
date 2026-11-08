@@ -298,3 +298,12 @@ def get_market_context(
         vix = None
     sector = None if is_historical(as_of_date) else _sector_benchmark(canonical, as_of)
     return build_report(canonical, stock, markets, vix, sector, as_of)
+
+# PUBLIC NAMES FOR THE PICKER (a local addition): the stock picker's quick look uses the very same arithmetic as the
+# analysis's market-context section, so what it says the market explains and what the analysis says cannot differ.
+regression = _regression
+attribution = _attribution
+drawdown = _drawdown
+move = _move
+sector_funds = _SECTOR_FUND
+industry_funds = _INDUSTRY_FUND

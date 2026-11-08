@@ -1,4 +1,5 @@
 import sys
+from pathlib import Path
 from enum import StrEnum
 from typing import Annotated
 
@@ -238,6 +239,108 @@ def ui(
         raise typer.Exit(code=1) from None
     run_server(port=port, open_browser=not no_browser)
 
+
+pick_app = typer.Typer(
+    name="pick", no_args_is_help=True,
+    help="Find stocks worth analyzing: a free, quick check in code before any paid analysis.",
+)
+app.add_typer(pick_app, name="pick")
+
+
+def _pick_folder():
+    from pathlib import Path
+
+    from tradingagents.default_config import build_default_config
+
+    return Path(build_default_config()["results_dir"]).parent / "picker"
+
+
+def _finish_pick(recipe, symbols, overrides, top, details, csv_path, json_output, refresh, no_log, workers):
+    """Run the quick look, print it, and save the CSV and the ledger row when asked."""
+    import json as _json
+    from datetime import date
+
+    from tradingagents.picker import ledger, quicklook, report
+    from tradingagents.picker.cache import FundamentalsCache
+    from tradingagents.picker.providers import YahooProvider
+    from tradingagents.picker.settings import PickerSettings
+
+    try:
+        settings = PickerSettings.with_overrides(top=top, **overrides)
+        folder = _pick_folder()
+        result = quicklook.run(recipe, YahooProvider(), settings, symbols=symbols,
+                               cache=FundamentalsCache(folder / "cache", date.today()), workers=workers, refresh=refresh,
+                               log=lambda message: typer.echo(message, err=True))
+    except (ValueError, quicklook.PickerError) as exc:
+        typer.echo(f"Error: {exc}", err=True)
+        raise typer.Exit(code=1) from None
+    if json_output:
+        typer.echo(_json.dumps(report.to_json(result), indent=2))
+    else:
+        typer.echo(report.render_text(result, settings.top, details))
+    if csv_path:
+        csv_path.write_bytes(report.to_csv(result))
+        typer.echo(f"Saved all {len(result.rows)} stocks to {csv_path}", err=True)
+    if not no_log and result.rows:
+        added = ledger.append_picks(folder / "picks.csv", result, settings.top)
+        typer.echo(f"Recorded the top {added} in {folder / 'picks.csv'} (use --no-log to skip).", err=True)
+
+
+@pick_app.command("beaten-down")
+def pick_beaten_down(
+    below_high: Annotated[float | None, typer.Option("--below-high", help="At least this far below the 52-week high, as a fraction (0.20 = 20%)")] = None,
+    min_cap: Annotated[float | None, typer.Option("--min-cap", help="Smallest market value in dollars (default 2 billion)")] = None,
+    min_volume: Annotated[float | None, typer.Option("--min-volume", help="Smallest average daily volume in shares (default 500,000)")] = None,
+    universe: Annotated[int | None, typer.Option("--universe", help="Screen the largest this many stocks (default 800)")] = None,
+    top: Annotated[int | None, typer.Option("--top", help="How many to show (default 15)")] = None,
+    details: Annotated[int, typer.Option("--details", help="How many get a full write-up")] = 3,
+    csv_path: Annotated[Path | None, typer.Option("--csv", help="Also save every stock checked to this CSV file")] = None,
+    json_output: Annotated[bool, typer.Option("--json", help="Print JSON instead of text, for programs")] = False,
+    refresh: Annotated[bool, typer.Option("--refresh", help="Download the fundamentals again instead of using today's saved copy")] = False,
+    no_log: Annotated[bool, typer.Option("--no-log", help="Do not add this list to the picks record")] = False,
+    workers: Annotated[int, typer.Option("--workers", help="Downloads at the same time")] = 6,
+):
+    """Beaten-down quality: stocks well below their highs where the market explains the fall, then checked against the
+    analysis's five deal conditions. Free and takes under a minute; it spends nothing on AI.
+    """
+    _finish_pick("beaten-down", None, {"below_high": below_high, "min_market_cap": min_cap, "min_avg_volume": min_volume,
+                                       "universe_limit": universe}, top, details, csv_path, json_output, refresh, no_log, workers)
+
+
+@pick_app.command("list")
+def pick_list(
+    tickers: Annotated[list[str] | None, typer.Argument(help="Stock symbols, for example NVDA MU TSM")] = None,
+    file: Annotated[Path | None, typer.Option("--file", help="A CSV or text file of symbols (a column called symbol or ticker, or one per line)")] = None,
+    top: Annotated[int | None, typer.Option("--top", help="How many to show (default 15)")] = None,
+    details: Annotated[int, typer.Option("--details", help="How many get a full write-up")] = 3,
+    csv_path: Annotated[Path | None, typer.Option("--csv", help="Also save every stock checked to this CSV file")] = None,
+    json_output: Annotated[bool, typer.Option("--json", help="Print JSON instead of text, for programs")] = False,
+    refresh: Annotated[bool, typer.Option("--refresh", help="Download the fundamentals again instead of using today's saved copy")] = False,
+    no_log: Annotated[bool, typer.Option("--no-log", help="Do not add this list to the picks record")] = False,
+    workers: Annotated[int, typer.Option("--workers", help="Downloads at the same time")] = 6,
+):
+    """Check stocks you name (typed here, or from a file) the same way, and rank them. Free; no AI calls."""
+    from tradingagents.picker.lists import clean_symbol, read_symbols_file
+
+    symbols: list[str] = []
+    skipped: list[str] = []
+    for text in tickers or []:
+        symbol = clean_symbol(text)
+        (symbols if symbol else skipped).append(symbol or text)
+    if file is not None:
+        try:
+            found, bad = read_symbols_file(file)
+        except ValueError as exc:
+            typer.echo(f"Error: {exc}", err=True)
+            raise typer.Exit(code=1) from None
+        symbols += [s for s in found if s not in symbols]
+        skipped += bad
+    if skipped:
+        typer.echo(f"Skipped (not usable as symbols): {', '.join(skipped[:10])}{' ...' if len(skipped) > 10 else ''}", err=True)
+    if not symbols:
+        typer.echo("Error: name at least one stock, for example: tradingagents pick list NVDA MU TSM", err=True)
+        raise typer.Exit(code=1)
+    _finish_pick("list", symbols, {}, top, details, csv_path, json_output, refresh, no_log, workers)
 
 if __name__ == "__main__":
     app()

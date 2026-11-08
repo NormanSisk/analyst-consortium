@@ -21,24 +21,19 @@ from collections.abc import Callable, Sequence
 from datetime import datetime
 from pathlib import Path
 
+from tradingagents.csv_safe import safe_cell  # noqa: F401  (also re-exported: the analysis export has always offered it here)
+
 CSV_COLUMNS = (
     "ticker", "analysis_date", "finished_at", "rating", "conviction_score", "borderline", "borderline_note",
     "panel_passes", "panel_ratings", "panel_median", "panel_agreement", "panel_label", "price_target", "time_horizon",
     "executive_summary", "investment_thesis", "research_depth", "investing_style", "analysts", "language", "ai_provider", "quick_model",
     "deep_model", "estimated_cost_usd", "seconds", "ai_calls", "holdings_file", "report_folder",
 )
-_FORMULA_STARTS = ("=", "+", "-", "@", "\t", "\r")
 _NUMERIC = {"conviction_score", "panel_passes", "panel_agreement", "research_depth", "estimated_cost_usd", "seconds", "ai_calls"}
 
 
 class ExportError(Exception):
     """The file could not be made; the message says why and what to do, in plain words."""
-
-
-def safe_cell(value) -> str:
-    """Text for a spreadsheet cell, defused if a spreadsheet would read it as a formula."""
-    text = "" if value is None else str(value)
-    return "'" + text if text.startswith(_FORMULA_STARTS) else text
 
 
 def row_for(job) -> dict:
