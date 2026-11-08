@@ -147,9 +147,10 @@ Your keys (`.env`), holdings file, run logs and reports, the picks log, caches a
 
 Compared with commit `c454491` (TradingAgents v0.7.1). A file that is not listed here is unchanged.
 
-#### Upstream files we modified (37)
+#### Upstream files we modified (38)
 
 - `.gitignore` (+6 -0)
+- `README.md` (+2 -0)
 - `cli/main.py` (+207 -1)
 - `cli/run.py` (+38 -5)
 - `pyproject.toml` (+6 -1)
@@ -187,12 +188,13 @@ Compared with commit `c454491` (TradingAgents v0.7.1). A file that is not listed
 - `tradingagents/report_html.py` (+35 -20)
 - `tradingagents/reporting.py` (+5 -0)
 
-#### Files we added (105)
+#### Files we added (109)
 
-**Tests** (41)
+**Tests** (42)
 
 - `tests/fixtures/scorecard_nvda.json`
 - `tests/picker_world.py`
+- `tests/test_changes_document.py`
 - `tests/test_company_statements.py`
 - `tests/test_conviction_note.py`
 - `tests/test_conviction_score.py`
@@ -307,15 +309,18 @@ Compared with commit `c454491` (TradingAgents v0.7.1). A file that is not listed
 - `cli/rerun.py`
 - `cli/usage_log.py`
 
-**Scripts, icon and design notes** (4)
+**Scripts, icon and design notes** (5)
 
 - `docs/mockups/setup-screen.html`
+- `scripts/list_changes.py`
 - `scripts/make_app_icon.py`
 - `tradingagents/assets/app-icon.ico`
 - `tradingagents/assets/app-icon.png`
 
-**Other program files** (4)
+**Other program files** (6)
 
+- `CHANGES-FROM-UPSTREAM.md`
+- `NOTICE`
 - `tradingagents/csv_safe.py`
 - `tradingagents/doctor.py`
 - `tradingagents/launcher.py`
