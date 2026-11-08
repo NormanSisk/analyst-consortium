@@ -45,6 +45,30 @@ def median_rating(ratings: list[str]) -> str:
     return ordered[(len(ordered) - 1) // 2]
 
 
+STRONG_SHARE = 0.8     # at least this share of the passes gave the median rating: strong agreement
+MODERATE_SHARE = 0.7   # at least this share: moderate; below it the call is borderline
+
+
+def agreement_label(ratings: list[str]) -> str:
+    """'strong', 'moderate' or 'borderline', from the share of passes that gave the median rating.
+
+    The thresholds make the narrowest majority borderline whatever the number of passes (3 of 5, 2 of 3, 4 of 7),
+    because that is the vote a single changed pass would overturn.
+    """
+    share = Counter(ratings)[median_rating(ratings)] / len(ratings)
+    return "strong" if share >= STRONG_SHARE else "moderate" if share >= MODERATE_SHARE else "borderline"
+
+
+def rating_range(ratings: list[str]) -> list[str]:
+    """[lowest, highest] of the ratings the passes gave."""
+    ordered = sorted(set(ratings), key=SCALE.index)
+    return [ordered[0], ordered[-1]]
+
+
+def _join(items: list[str]) -> str:
+    return items[0] if len(items) == 1 else ", ".join(items[:-1]) + " and " + items[-1]
+
+
 def summarize(ratings: list[str], requested: int | None = None) -> str:
     """How the passes voted and what that means, in plain words."""
     n = len(ratings)
@@ -52,14 +76,14 @@ def summarize(ratings: list[str], requested: int | None = None) -> str:
     counts = Counter(ratings)
     votes = ", ".join(f"{r} {counts[r]}" for r in reversed(SCALE) if counts.get(r))
     agree = counts[median]
-    share = agree / n
-    if share >= 0.8:
+    label = agreement_label(ratings)
+    if label == "strong":
         reading = "Strong agreement."
-    elif share >= 0.6:
-        others = " and ".join(r for r in reversed(SCALE) if counts.get(r) and r != median)
+    elif label == "moderate":
+        others = _join([r for r in reversed(SCALE) if counts.get(r) and r != median])
         reading = f"Moderate agreement; the other passes said {others}."
     else:
-        spread = " and ".join(sorted(set(ratings), key=SCALE.index))
+        spread = _join(sorted(set(ratings), key=SCALE.index))
         reading = f"Borderline: the passes split between {spread}, so treat this rating as uncertain."
     text = (f"{n} independent passes of the research debate: {votes}. "
             f"Median {median}, agreed on by {agree} of {n}. {reading}")
@@ -103,6 +127,7 @@ def create_research_panel(bull_node, bear_node, manager_node, conditional_logic,
             logger.warning("No research-panel pass gave a readable rating; using the first plan as it is")
             first = results[0]
             panel = {"passes": 0, "requested": passes, "ratings": [], "median": None, "agreement": 0.0,
+                     "label": "none", "range": [],
                      "summary": f"None of {passes} research passes gave a readable rating; the first plan was used."}
             return {"investment_debate_state": first["debate"], "investment_plan": first["plan"],
                     "research_panel": panel}
@@ -110,7 +135,8 @@ def create_research_panel(bull_node, bear_node, manager_node, conditional_logic,
         median = median_rating(ratings)
         chosen = next(r for r in usable if r["rating"] == median)
         panel = {"passes": len(usable), "requested": passes, "ratings": ratings, "median": median,
-                 "agreement": Counter(ratings)[median] / len(ratings), "summary": summarize(ratings, passes)}
+                 "agreement": Counter(ratings)[median] / len(ratings), "label": agreement_label(ratings),
+                 "range": rating_range(ratings), "summary": summarize(ratings, passes)}
         return {"investment_debate_state": chosen["debate"], "investment_plan": chosen["plan"],
                 "research_panel": panel}
 

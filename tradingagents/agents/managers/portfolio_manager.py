@@ -40,7 +40,11 @@ def create_portfolio_manager(llm):
             else ""
         )
         # A local addition: how the research panel's passes voted, so a borderline call is read as one.
-        panel_summary = (state.get("research_panel") or {}).get("summary")
+        panel = state.get("research_panel") or {}
+        panel_summary = panel.get("summary")
+        if panel_summary and panel.get("label") == "borderline" and len(panel.get("range") or []) == 2:
+            low, high = panel["range"]
+            panel_summary += f" Say in your Executive Summary that the call is borderline between {low} and {high}."
         panel_line = f"- Research panel: {panel_summary}\n" if panel_summary else ""
 
         prompt = f"""As the Portfolio Manager, synthesize the risk analysts' debate and deliver the final trading decision.

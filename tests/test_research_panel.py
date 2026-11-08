@@ -47,18 +47,47 @@ class TestPlanRating:
 
 
 @pytest.mark.unit
+class TestAgreementLabel:
+    @pytest.mark.parametrize("ratings, label", [
+        (["Hold"] * 5, "strong"),
+        (["Hold"] * 4 + ["Overweight"], "strong"),                       # 4 of 5 = 80%
+        (["Hold"] * 3 + ["Underweight"] * 2, "borderline"),              # 3 of 5: the narrowest majority
+        (["Hold"] * 3, "strong"),
+        (["Hold", "Hold", "Overweight"], "borderline"),                  # 2 of 3
+        (["Hold"] * 6 + ["Overweight"], "strong"),                       # 6 of 7 = 86%
+        (["Hold"] * 5 + ["Overweight"] * 2, "moderate"),                 # 5 of 7 = 71%
+        (["Hold"] * 4 + ["Overweight"] * 3, "borderline"),               # 4 of 7
+        (["Hold", "Hold", "Hold", "Overweight"], "moderate"),            # 3 of 4 = 75%
+        (["Hold", "Hold", "Overweight", "Overweight"], "borderline"),    # 2 of 4
+        (["Hold", "Overweight", "Hold", "Overweight", "Underweight"], "borderline"),
+    ])
+    def test_the_narrowest_majority_is_borderline_whatever_the_number_of_passes(self, ratings, label):
+        assert rp.agreement_label(ratings) == label
+
+    def test_the_range_is_the_lowest_and_highest_rating_seen(self):
+        assert rp.rating_range(["Hold", "Overweight", "Hold", "Underweight", "Hold"]) == ["Underweight", "Overweight"]
+        assert rp.rating_range(["Hold"] * 3 + ["Underweight"] * 2) == ["Underweight", "Hold"]
+
+
+@pytest.mark.unit
 class TestSummary:
     def test_strong_agreement(self):
         text = rp.summarize(["Hold"] * 4 + ["Overweight"], 5)
         assert "Overweight 1, Hold 4" in text and "Median Hold, agreed on by 4 of 5" in text and "Strong agreement." in text
 
     def test_moderate_agreement_names_the_other_view(self):
-        text = rp.summarize(["Hold", "Hold", "Hold", "Overweight", "Overweight"], 5)
+        text = rp.summarize(["Hold"] * 5 + ["Overweight"] * 2, 7)
         assert "Moderate agreement; the other passes said Overweight." in text
 
-    def test_a_split_is_called_borderline(self):
+    def test_a_three_two_split_is_called_borderline_and_names_both_ratings(self):
+        text = rp.summarize(["Hold", "Underweight", "Hold", "Underweight", "Hold"], 5)
+        assert "Median Hold, agreed on by 3 of 5" in text
+        assert "Borderline: the passes split between Underweight and Hold, so treat this rating as uncertain." in text
+        assert "Moderate" not in text and "Strong" not in text
+
+    def test_a_wide_split_lists_every_rating_seen(self):
         text = rp.summarize(["Hold", "Overweight", "Hold", "Overweight", "Underweight"], 5)
-        assert "Borderline: the passes split between Underweight and Hold and Overweight" in text
+        assert "Borderline: the passes split between Underweight, Hold and Overweight" in text
         assert "treat this rating as uncertain" in text
 
     def test_failed_passes_are_reported(self):
@@ -116,6 +145,7 @@ class TestNode:
         assert panel["ratings"] == ["Overweight", "Hold", "Hold", "Overweight", "Hold"] or sorted(panel["ratings"]) == sorted(
             ["Overweight", "Hold", "Hold", "Overweight", "Hold"])
         assert panel["agreement"] == pytest.approx(0.6)
+        assert panel["label"] == "borderline" and panel["range"] == ["Hold", "Overweight"]
         assert "Median Hold, agreed on by 3 of 5" in panel["summary"]
         assert out["investment_plan"].startswith("**Recommendation**: Hold")
         # the debate that goes on belongs to the same pass as the plan
@@ -216,6 +246,19 @@ class TestReachesTheReaders:
     def test_the_portfolio_manager_is_told_how_the_panel_voted(self):
         prompt = self._pm_prompt({"research_panel": {"summary": "5 independent passes: Hold 3, Overweight 2. Moderate agreement."}})
         assert "- Research panel: 5 independent passes: Hold 3, Overweight 2. Moderate agreement." in prompt
+
+    def test_a_borderline_vote_asks_for_the_range_in_the_executive_summary(self):
+        prompt = self._pm_prompt({"research_panel": {
+            "summary": "5 independent passes: Hold 3, Underweight 2. Borderline.", "label": "borderline",
+            "range": ["Underweight", "Hold"]}})
+        assert "Say in your Executive Summary that the call is borderline between Underweight and Hold." in prompt
+
+    @pytest.mark.parametrize("label", ["strong", "moderate", "none"])
+    def test_a_clear_vote_adds_no_such_request(self, label):
+        prompt = self._pm_prompt({"research_panel": {
+            "summary": "5 independent passes: Hold 5.", "label": label, "range": ["Hold", "Hold"]}})
+        assert "- Research panel: 5 independent passes: Hold 5." in prompt
+        assert "borderline between" not in prompt
 
     def test_without_a_panel_the_portfolio_managers_prompt_is_as_before(self):
         assert "Research panel" not in self._pm_prompt({})
