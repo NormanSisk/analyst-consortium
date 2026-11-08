@@ -1,3 +1,5 @@
+> **This is Analyst Consortium, a modified version of [TradingAgents](https://github.com/TauricResearch/TradingAgents) by Tauric Research** (Apache License 2.0), started from v0.7.1. We changed some of the original files and added many new ones: **[CHANGES-FROM-UPSTREAM.md](CHANGES-FROM-UPSTREAM.md)** says exactly what. It is not affiliated with or endorsed by Tauric Research. It is a research tool, not financial advice, and it never places trades. The rest of this README is still the original project's and will be rewritten before release.
+
 <p align="center">
   <img src="tradingagents/assets/tauric-logo.svg" width="60%" alt="Tauric Research">
 </p>
