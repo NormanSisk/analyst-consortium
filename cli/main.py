@@ -240,6 +240,39 @@ def ui(
     run_server(port=port, open_browser=not no_browser)
 
 
+@app.command()
+def shortcut(
+    where: Annotated[str, typer.Option("--where", help="desktop (the default), start-menu, or here (the current folder)")] = "desktop",
+    folder: Annotated[Path | None, typer.Option("--folder", help="Put it in this folder instead")] = None,
+    remove: Annotated[bool, typer.Option("--remove", help="Remove the shortcut this command made")] = False,
+):
+    """Put a launcher on your desktop, so a double-click opens Analyst Consortium without typing anything.
+
+    It runs the same `tradingagents ui`, from the folder that holds your .env, so your keys, settings and results stay where they are.
+    It changes no program files: you can still edit the program, and your edits show the next time it starts. Windows gets a real
+    shortcut with the app's icon; macOS gets a .command file and Linux a .desktop entry (written from those systems' documentation,
+    not tried on them yet).
+    """
+    from tradingagents import launcher
+
+    if where not in launcher.WHERES:
+        raise typer.BadParameter(f"choose from {', '.join(launcher.WHERES)}", param_hint="--where")
+    try:
+        if remove:
+            gone = launcher.remove(where, folder)
+            typer.echo(f"Removed {gone}" if gone else "There was no shortcut there to remove.")
+            return
+        made = launcher.create(where, folder)
+    except launcher.ShortcutError as exc:
+        typer.echo(f"Error: {exc}", err=True)
+        raise typer.Exit(code=1) from None
+    typer.echo(f"Created: {made.path}")
+    typer.echo(f"Double-click it to open Analyst Consortium. It starts from {made.start}, where your .env is, so your keys and data stay put.")
+    typer.echo("If you move the project folder or its Python environment, run this command again. Remove it with:  tradingagents shortcut --remove")
+    for note in made.notes:
+        typer.echo(f"Note: {note}")
+
+
 pick_app = typer.Typer(
     name="pick", no_args_is_help=True,
     help="Find stocks worth analyzing: a free, quick check in code before any paid analysis.",

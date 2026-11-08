@@ -677,6 +677,57 @@ class TestServerHelpers:
         import inspect
         assert 'host=HOST' in inspect.getsource(server.run_server) and '"0.0.0.0"' not in inspect.getsource(server)
 
+    def _fake_page(self, monkeypatch, body=b"", error=None):
+        asked = []
+
+        class Answer:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                return False
+
+            def read(self, n=-1):
+                return body[:n]
+
+        def urlopen(url, timeout=None):
+            asked.append((url, timeout))
+            if error:
+                raise error
+            return Answer()
+
+        monkeypatch.setattr(server.urllib.request, "urlopen", urlopen)
+        return asked
+
+    def test_this_programs_own_page_is_recognized_on_the_loopback_address_only(self, monkeypatch):
+        asked = self._fake_page(monkeypatch, b'<title>Analyst Consortium - Run and setup</title><meta name="council-token" content="x">')
+        assert server.running_here(8765) is True and asked == [("http://127.0.0.1:8765/", 1.0)]
+
+    @pytest.mark.parametrize("body, error", [
+        (b"<html>Some other site</html>", None),
+        (b'<meta name="council-token" content="x">', None),                      # a page with a token but not ours
+        (b"<title>Analyst Consortium</title>", None),                           # our name but no token
+        (b"", ConnectionRefusedError()), (b"", TimeoutError()), (b"", OSError("no route")),
+    ])
+    def test_anything_else_on_the_port_is_not_taken_for_this_program(self, monkeypatch, body, error):
+        self._fake_page(monkeypatch, body, error)
+        assert server.running_here(8765) is False
+
+    def test_a_second_start_opens_the_running_page_instead_of_starting_another(self, monkeypatch, capsys):
+        opened = []
+        monkeypatch.setattr(server, "running_here", lambda port, timeout=1.0: port == 8765)
+        monkeypatch.setattr(server.webbrowser, "open", lambda url: opened.append(url))
+        monkeypatch.setattr(server, "find_free_port", lambda *a, **k: pytest.fail("a second server must not be started"))
+        server.run_server(port=8765, open_browser=True)
+        assert opened == ["http://127.0.0.1:8765/"] and "already running" in capsys.readouterr().out
+        opened.clear()
+        server.run_server(port=None, open_browser=False)                         # the usual port, no browser asked for
+        assert opened == []
+
+    def test_the_start_message_says_how_to_stop_for_someone_who_double_clicked_a_shortcut(self):
+        import inspect
+        assert "or just close this window" in inspect.getsource(server.run_server)
+
 
 @pytest.mark.unit
 class TestCommand:

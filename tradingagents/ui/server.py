@@ -17,6 +17,7 @@ import re
 import secrets
 import socket
 import threading
+import urllib.request
 import webbrowser
 from contextlib import asynccontextmanager
 from datetime import date
@@ -443,13 +444,32 @@ def find_free_port(start: int = DEFAULT_PORT, tries: int = 20) -> int:
     raise OSError(f"No free port from {start} to {start + tries - 1}.")
 
 
+def running_here(port: int, timeout: float = 1.0) -> bool:
+    """True when this program's page already answers on this computer at ``port`` (so a second copy is not started)."""
+    try:
+        with urllib.request.urlopen(f"http://{HOST}:{port}/", timeout=timeout) as answer:     # nosec: loopback only
+            page = answer.read(20000).decode("utf-8", "replace")
+    except Exception:  # noqa: BLE001 - nothing there, something else there, or too slow: all mean "not ours"
+        return False
+    return 'name="council-token"' in page and "Analyst Consortium" in page
+
+
 def run_server(port: int | None = None, open_browser: bool = True, dotenv_path: Path | None = None) -> None:
     import uvicorn
 
-    port = find_free_port(port or DEFAULT_PORT)
+    wanted = port or DEFAULT_PORT
+    if running_here(wanted):
+        # Already open (for example the shortcut was double-clicked twice): show that one. A second copy on another port would
+        # also start with its own, empty display choices, which are kept per address.
+        url = f"http://{HOST}:{wanted}/"
+        print(f"Analyst Consortium is already running: {url}")
+        if open_browser:
+            webbrowser.open(url)
+        return
+    port = find_free_port(wanted)
     app = create_app(secrets.token_urlsafe(24), dotenv_path, port)
     url = f"http://{HOST}:{port}/"
-    print(f"Analyst Consortium: {url}\nPress Ctrl+C to stop. It answers only on this computer.")
+    print(f"Analyst Consortium: {url}\nPress Ctrl+C to stop, or just close this window. It answers only on this computer.")
     if open_browser:
         threading.Timer(1.0, lambda: webbrowser.open(url)).start()
     uvicorn.run(app, host=HOST, port=port, log_level="warning", access_log=False)
