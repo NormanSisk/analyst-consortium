@@ -200,5 +200,27 @@ def logout(plan: Annotated[Plan, typer.Argument(help="The plan to sign out of")]
         console.print("Not signed in to ChatGPT.")
 
 
+@app.command()
+def doctor(
+    json_output: Annotated[bool, typer.Option("--json", help="Print the report as JSON, for programs")] = False,
+    offline: Annotated[bool, typer.Option("--offline", help="Skip every check that needs the internet")] = False,
+    no_ai_call: Annotated[bool, typer.Option("--no-ai-call", help="Skip the live test calls to the AI provider")] = False,
+    group: Annotated[list[str] | None, typer.Option(
+        "--group", help="Check only this group (repeatable): environment, ai, data, settings")] = None,
+):
+    """Check your setup in plain words: folders, certificates, AI keys and models, data sources, settings.
+
+    Changes nothing and never prints a key. Exits with 1 when something required is missing or broken.
+    """
+    from tradingagents.doctor import GROUPS, format_json, format_text, run_doctor
+
+    unknown = [g for g in group or [] if g not in GROUPS]
+    if unknown:
+        raise typer.BadParameter(f"unknown group {', '.join(unknown)}; choose from {', '.join(GROUPS)}", param_hint="--group")
+    report = run_doctor(offline=offline, live_ai=not no_ai_call, groups=group)
+    typer.echo(format_json(report) if json_output else format_text(report))
+    raise typer.Exit(code=0 if report.ready else 1)
+
+
 if __name__ == "__main__":
     app()
