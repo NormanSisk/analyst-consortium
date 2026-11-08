@@ -24,6 +24,11 @@
   --border-w:4px;
   --page-grad:none; --page-img:none;      /* high contrast is always a plain black page */
 }
+/* The small promotion in the side column: a link that looks like the other buttons. */
+.promo { margin:1rem 0 0; padding-top:.8rem; border-top:1px solid var(--line); }
+.promo-label { margin:0 0 .4rem; font-size:.9rem; color:var(--muted); }
+a.btn-like { display:inline-flex; align-items:center; justify-content:center; text-decoration:none; text-align:center; }
+.promo .hint { margin:.4rem 0 0; }
 /* Text size: two choices. Normal (14px) is where everyone starts; Larger (17px) is for those who want it. The last one a person
    picks is remembered. Anyone who needs more can use the browser's own zoom, which this layout follows. */
 html { font-size:14px; }

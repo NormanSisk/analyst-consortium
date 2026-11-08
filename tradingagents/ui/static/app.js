@@ -67,19 +67,21 @@ function row(r) {
     `<button type="button" class="secondary" data-test="${esc(r.id)}">Test again</button></div></li>`;
 }
 
+const needWord = n => (n === 1 ? "needs" : "need");          // "1 needs setup", "0 need setup", "2 need setup"
+
 function render() {
   const c = {};
   Object.keys(LABEL).forEach(k => { c[k] = results.filter(r => r.status === k).length; });
   const ready = !results.some(r => r.required && (r.status === "needs_setup" || r.status === "not_working"));
   $("summary").innerHTML = `<p class="big">READY TO RUN: ${ready ? "YES" : "NO"}</p>` +
     `<p>${ready ? "Everything required works." : "Fix the items marked REQUIRED first."}</p>` +
-    `<p class="counts">${c.ok} OK, ${c.needs_setup} need setup, ${c.not_working} not working, ${c.off} off, ${c.skipped} skipped.</p>`;
+    `<p class="counts">${c.ok} OK, ${c.needs_setup} ${needWord(c.needs_setup)} setup, ${c.not_working} not working, ${c.off} off, ${c.skipped} skipped.</p>`;
   $("groups").innerHTML = GROUPS.map(([id, title]) => {
     const rows = results.filter(r => r.group === id);
     if (!rows.length) return "";
     const attention = rows.filter(r => r.status === "needs_setup" || r.status === "not_working").length;
     return `<details class="group" data-group="${id}"${openGroups[id] ? " open" : ""}><summary><h2>${esc(title)}</h2>` +
-      `<span class="count">${attention ? attention + " need attention" : "all fine"}</span></summary>` +
+      `<span class="count">${attention ? attention + " " + needWord(attention) + " attention" : "all fine"}</span></summary>` +
       `<ul class="checks">${rows.map(row).join("")}</ul></details>`;
   }).join("");
   return ready;

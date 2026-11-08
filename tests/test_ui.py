@@ -262,6 +262,26 @@ class TestApi:
         assert labels == {"normal": "Normal", "large": "Larger"}
         assert "xlarge" not in css and "xlarge" not in html                       # the larger sizes and their layout rules are gone
 
+    def test_the_summary_sentences_agree_in_number(self):
+        from pathlib import Path
+        js = (Path(server.STATIC) / "app.js").read_text(encoding="utf-8")
+        assert 'const needWord = n => (n === 1 ? "needs" : "need")' in js
+        assert "${c.needs_setup} ${needWord(c.needs_setup)} setup" in js and 'attention + " " + needWord(attention) + " attention"' in js
+        assert "need setup, " not in js and '" need attention"' not in js                  # the fixed wording is never written out
+
+    def test_the_promotion_is_a_plain_link_that_opens_safely_and_can_be_deleted_as_one_block(self):
+        from pathlib import Path
+        html = (Path(server.STATIC) / "index.html").read_text(encoding="utf-8")
+        block = html[html.index('<div class="promo" id="promo">'):]
+        block = block[:block.index("</div>") + len("</div>")]
+        assert block.count("<a ") == 1 and 'href="https://aeroplanimetry.com"' in block and "Visit AeroPlanimetry" in block
+        assert 'target="_blank"' in block and 'rel="noopener noreferrer"' in block         # a new tab that cannot reach back into this page
+        assert "(opens in a new tab)" in block and 'class="btn-like secondary"' in block    # said to a screen reader, and styled like the other buttons
+        assert "<script" not in block and " style=" not in block and "onclick" not in block
+        assert "Delete this whole block if you do not want it" in html[html.index('<div class="promo"') - 200:html.index('<div class="promo"')]
+        assert html.count("aeroplanimetry.com") == 1                                       # one promotion, in one place
+        assert html.index('id="promo"') < html.index('<p class="small">')                  # above the disclaimer, inside the side column
+
     def test_the_last_choice_is_remembered_and_nothing_is_saved_until_one_is_made(self):
         from pathlib import Path
         js = (Path(server.STATIC) / "app.js").read_text(encoding="utf-8")

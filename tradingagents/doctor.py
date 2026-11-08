@@ -700,7 +700,8 @@ def format_text(report: Report) -> str:
     c = report.counts
     lines = [f"TradingAgents doctor  ({report.generated})",
              "Plain-words status of your setup. Nothing is changed and no key is shown.", ""]
-    summary = f"{c.get(OK, 0)} OK, {c.get(NEEDS_SETUP, 0)} need setup, {c.get(NOT_WORKING, 0)} not working, " \
+    needs = c.get(NEEDS_SETUP, 0)
+    summary = f"{c.get(OK, 0)} OK, {needs} {'needs' if needs == 1 else 'need'} setup, {c.get(NOT_WORKING, 0)} not working, " \
               f"{c.get(OFF, 0)} off, {c.get(SKIPPED, 0)} skipped."
     lines.append("SUMMARY: " + summary)
     if report.ready:

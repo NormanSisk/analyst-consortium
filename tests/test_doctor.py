@@ -96,6 +96,16 @@ class TestScrub:
 
 
 @pytest.mark.unit
+class TestSummaryGrammar:
+    @pytest.mark.parametrize("n, word", [(0, "need"), (1, "needs"), (2, "need"), (11, "need")])
+    def test_the_summary_line_agrees_with_its_number(self, n, word):
+        counts = {s: 0 for s in dr.LABEL}
+        counts[dr.NEEDS_SETUP] = n
+        text = dr.format_text(dr.Report([], "2026-11-08 10:00", counts, True, False))
+        assert f"SUMMARY: 0 OK, {n} {word} setup, 0 not working, 0 off, 0 skipped." in text
+
+
+@pytest.mark.unit
 class TestHealthyRun:
     def test_everything_working_is_ready_and_no_key_appears_anywhere(self, tmp_path):
         http = FakeHttp({"alphavantage": dr.Reply(200, '{"Global Quote": {}}')})
