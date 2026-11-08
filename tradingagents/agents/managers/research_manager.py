@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from tradingagents.agents.context import get_instrument_context_from_state, get_language_instruction
 from tradingagents.agents.schemas import ResearchPlan, render_research_plan
+from tradingagents.agents.selloff import selloff_rules
 from tradingagents.agents.structured import (
     NO_EXTERNAL_TOOLS,
     bind_structured,
@@ -39,7 +40,7 @@ The debate always contains conflicting arguments; deciding which side is stronge
 
 **Debate History:**
 {history}
-
+{selloff_rules('research_manager')}
 ## Output
 
 Write these sections, in this order, starting with the recommendation on its own line:
