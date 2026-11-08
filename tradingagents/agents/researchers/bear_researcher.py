@@ -1,5 +1,6 @@
 from tradingagents.agents.scorecard import scorecard_block
 from tradingagents.agents.selloff import selloff_rules
+from tradingagents.agents.style import style_lens
 from tradingagents.agents.context import (
     get_instrument_context_from_state,
     get_language_instruction,
@@ -50,7 +51,7 @@ Latest world affairs news: {news_report}
 Conversation history of the debate: {history}
 Last bull argument: {current_response}
 Use this information to deliver a compelling bear argument, refute the bull's claims, and engage in a dynamic debate that demonstrates the risks and weaknesses of investing in the {target_label}.
-""" + selloff_rules("bear") + get_language_instruction()
+""" + selloff_rules("bear") + style_lens("bear") + get_language_instruction()
 
         response = llm.invoke(prompt)
 

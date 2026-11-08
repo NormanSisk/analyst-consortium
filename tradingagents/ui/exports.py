@@ -24,7 +24,7 @@ from pathlib import Path
 CSV_COLUMNS = (
     "ticker", "analysis_date", "finished_at", "rating", "conviction_score", "borderline", "borderline_note",
     "panel_passes", "panel_ratings", "panel_median", "panel_agreement", "panel_label", "price_target", "time_horizon",
-    "executive_summary", "investment_thesis", "research_depth", "analysts", "language", "ai_provider", "quick_model",
+    "executive_summary", "investment_thesis", "research_depth", "investing_style", "analysts", "language", "ai_provider", "quick_model",
     "deep_model", "estimated_cost_usd", "seconds", "ai_calls", "holdings_file", "report_folder",
 )
 _FORMULA_STARTS = ("=", "+", "-", "@", "\t", "\r")
@@ -57,7 +57,7 @@ def row_for(job) -> dict:
         "panel_label": panel.get("label", ""),
         "price_target": result.get("price_target", ""), "time_horizon": result.get("time_horizon", ""),
         "executive_summary": result.get("summary", ""), "investment_thesis": result.get("thesis", ""),
-        "research_depth": job.depth, "analysts": ", ".join(job.analysts), "language": job.language,
+        "research_depth": job.depth, "investing_style": job.style, "analysts": ", ".join(job.analysts), "language": job.language,
         "ai_provider": job.provider, "quick_model": job.quick, "deep_model": job.deep,
         "estimated_cost_usd": result.get("cost_usd"), "seconds": result.get("seconds"), "ai_calls": result.get("llm_calls"),
         "holdings_file": job.holdings or "", "report_folder": result.get("report_dir") or "",

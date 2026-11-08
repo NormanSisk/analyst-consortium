@@ -65,6 +65,7 @@ class TestValidate:
     @pytest.mark.parametrize("name, value, expected", [
         ("TRADINGAGENTS_LLM_PROVIDER", " Anthropic ", "anthropic"),
         ("TRADINGAGENTS_RESEARCH_PASSES", "5", "5"),
+        ("TRADINGAGENTS_INVESTING_STYLE", " Growth ", "growth"),
         ("TRADINGAGENTS_QUICK_THINK_LLM", "claude-haiku-5-5", "claude-haiku-5-5"),
         ("SEC_EDGAR_USER_AGENT", "Jane Doe jane@example.org", "Jane Doe jane@example.org"),
         ("TRADINGAGENTS_NO_SCORECARD", "1", "1"),
@@ -74,7 +75,7 @@ class TestValidate:
         assert store.validate(self.reg[name], value) == expected
 
     @pytest.mark.parametrize("name, value", [
-        ("TRADINGAGENTS_LLM_PROVIDER", "not-a-provider"),
+        ("TRADINGAGENTS_LLM_PROVIDER", "not-a-provider"), ("TRADINGAGENTS_INVESTING_STYLE", "value"),
         ("TRADINGAGENTS_RESEARCH_PASSES", "0"), ("TRADINGAGENTS_RESEARCH_PASSES", "16"), ("TRADINGAGENTS_RESEARCH_PASSES", "five"),
         ("TRADINGAGENTS_QUICK_THINK_LLM", "bad name with spaces"), ("TRADINGAGENTS_QUICK_THINK_LLM", "x\nINJECTED=1"),
         ("SEC_EDGAR_USER_AGENT", "ab"), ("SEC_EDGAR_USER_AGENT", "line one\nline two"),
@@ -191,6 +192,7 @@ class TestApi:
         assert anth["key_env"] == "ANTHROPIC_API_KEY" and not anth["sign_in"]
         assert next(p for p in body["choices"]["providers"] if p["id"] == "ollama")["key_env"] is None
         assert body["choices"]["passes"] == [1, 3, 5, 7, 9] and body["effective"]["passes"] >= 1
+        assert [s["id"] for s in body["choices"]["styles"]] == ["standard", "growth"]
         assert body["dotenv"]["exists"] is False
 
     def test_saving_a_key_writes_it_and_the_reply_never_contains_it(self, dotenv, monkeypatch):
@@ -324,6 +326,8 @@ class TestRunsApi:
         assert [a["id"] for a in body["analysts"]] == ["market", "social", "news", "fundamentals"]
         assert [d["value"] for d in body["depths"]] == [1, 3, 5] and "English" in body["languages"]
         assert body["defaults"]["depth"] == 1 and body["defaults"]["selloff"] is True and body["defaults"]["scorecard"] is True
+        assert [s["id"] for s in body["styles"]] == ["standard", "growth"] and body["defaults"]["style"] == "standard"
+        assert all(s["label"] and s["help"] for s in body["styles"])
         assert body["provider"] == {"id": "anthropic", "quick": "claude-haiku-5-5", "deep": "claude-sonnet-5",
                                     "key_env": "ANTHROPIC_API_KEY", "key_set": True, "sign_in": False}
         assert body["costs"]["1"]["usd"] == 0.13 and body["costs"]["5"]["measured"] is True
@@ -335,9 +339,10 @@ class TestRunsApi:
         monkeypatch.setenv("TRADINGAGENTS_RESEARCH_PASSES", "11")
         monkeypatch.setenv("TRADINGAGENTS_MAX_DEBATE_ROUNDS", "3")
         monkeypatch.setenv("TRADINGAGENTS_NO_SCORECARD", "1")
+        monkeypatch.setenv("TRADINGAGENTS_INVESTING_STYLE", "growth")
         body = client(dotenv, runs=rig[0]).get("/api/run-options", headers=HEADERS).json()
         assert body["defaults"]["passes"] == 11 and 11 in body["passes"] and body["defaults"]["depth"] == 3
-        assert body["defaults"]["scorecard"] is False
+        assert body["defaults"]["scorecard"] is False and body["defaults"]["style"] == "growth"
 
     def test_a_started_analysis_is_listed_and_launched_with_the_form_choices(self, dotenv, rig):
         manager, launches, _ = rig
@@ -381,6 +386,7 @@ class TestRunsApi:
         ({"depth": 2}, "Shallow, Medium or Deep"),
         ({"passes": 99}, "whole number"),
         ({"language": "X=1\nY"}, "language"),
+        ({"style": "value"}, "investing style"),
         ({"holdings": "other.json"}, "not one of the files offered"),
         ({"holdings": "C:\\Users\\x\\secrets.json"}, "not one of the files offered"),
     ])

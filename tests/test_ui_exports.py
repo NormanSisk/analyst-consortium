@@ -51,6 +51,8 @@ class TestCsv:
         assert row["price_target"] == "not provided" and row["time_horizon"] == "2-6 weeks"
         assert (row["estimated_cost_usd"], row["seconds"], row["ai_calls"]) == ("0.38", "351", "29")
         assert (row["analysts"], row["research_depth"], row["ai_provider"]) == ("market, news", "1", "anthropic")
+        assert row["investing_style"] == "standard"
+        assert parse(ex.build_csv([done_job(style="growth")]))[0]["investing_style"] == "growth"
         assert row["quick_model"] == "claude-haiku-5-5" and row["deep_model"] == "claude-sonnet-5"
         assert row["report_folder"] == "C:/results/reports/KO_1" and row["holdings_file"] == ""
         assert row["finished_at"].startswith("2026-") and "T" in row["finished_at"]

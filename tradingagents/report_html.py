@@ -230,6 +230,8 @@ def _run_details(final_state: dict, settings: dict | None) -> list[tuple[str, st
             provider = s(f"{tier}_think_provider") or s("llm_provider", "?")
             details.append((f"{tier.capitalize()} model", _fields([provider, s(f"{tier}_think_llm", "?")])))
         details.append(("Analysts", _fields(analyst_names(s("analysts")))))
+        if s("investing_style", "standard") != "standard":
+            details.append(("Investing style", escape(f"{s('investing_style')} lens, chosen by the user")))
         details.append(("Debate rounds", " ".join((
             _group("research", _fields([s("max_debate_rounds", "?")])),
             _group("risk", _fields([s("max_risk_discuss_rounds", "?")])),

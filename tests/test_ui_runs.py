@@ -114,6 +114,15 @@ class TestCleanRequest:
     def test_a_custom_language_name_is_allowed(self, language):
         assert clean(request(language=language))["language"] == language
 
+    def test_the_investing_style_defaults_to_standard_and_accepts_growth_in_any_case(self):
+        assert clean(request())["style"] == "standard" and clean(request(style=""))["style"] == "standard"
+        assert clean(request(style="Growth"))["style"] == "growth" and clean(request(style=" growth "))["style"] == "growth"
+
+    @pytest.mark.parametrize("style", ["value", "x\nTRADINGAGENTS_NO_SCORECARD=1", "growth;", 5, ["growth"]])
+    def test_an_unknown_style_is_refused(self, style):
+        with pytest.raises(rn.RequestError, match="investing style"):
+            clean(request(style=style))
+
     def test_a_holdings_file_must_be_one_that_was_offered(self, tmp_path):
         book = tmp_path / "my_book.json"
         assert clean(request(holdings="my_book.json"), {"my_book.json": book})["holdings"] == "my_book.json"
@@ -159,7 +168,11 @@ class TestCommandAndEnvironment:
         assert (env["TRADINGAGENTS_LLM_PROVIDER"], env["TRADINGAGENTS_QUICK_THINK_LLM"], env["TRADINGAGENTS_DEEP_THINK_LLM"]) == \
             ("anthropic", "claude-haiku-5-5", "claude-sonnet-5")
         assert env["PYTHONUTF8"] == "1"
+        assert env["TRADINGAGENTS_INVESTING_STYLE"] == "standard"
         assert "TRADINGAGENTS_NO_SELLOFF_RULES" not in env and "TRADINGAGENTS_NO_SCORECARD" not in env   # switched on
+
+    def test_the_chosen_investing_style_reaches_the_environment(self):
+        assert rn.build_env(make_job(style="growth"), {"TRADINGAGENTS_INVESTING_STYLE": "standard"})["TRADINGAGENTS_INVESTING_STYLE"] == "growth"
 
     def test_switching_a_feature_off_sets_its_variable(self):
         env = rn.build_env(make_job(selloff=False, scorecard=False), {})
@@ -416,6 +429,23 @@ class TestQueue:
         assert got["status"] == "done" and got["result"]["rating"] == "Hold" and got["error"] == ""
         assert got["elapsed"] is not None and got["expected_minutes"] == 6
         assert r.launches[0]["env"]["BASE"] == "1" and r.launches[0]["env"]["TRADINGAGENTS_RESEARCH_PASSES"] == "5"
+
+    def test_the_style_is_recorded_with_the_job_and_given_to_the_child(self, rig):
+        r = rig(behave=succeeding)
+        job, = r.submit(style="growth")
+        r.wait(lambda: r.status(job) == "done")
+        assert r.launches[0]["env"]["TRADINGAGENTS_INVESTING_STYLE"] == "growth"
+        assert r.manager.get(job.id)["style"] == "growth"
+        saved = json.loads((r.results / "ui-runs" / job.id / "job.json").read_text(encoding="utf-8"))
+        assert saved["style"] == "growth"
+
+    def test_an_older_job_file_without_a_style_reads_as_standard(self, tmp_path):
+        folder = tmp_path / "ui-runs" / "20261108-101010-abcd"
+        folder.mkdir(parents=True)
+        data = make_job(id=folder.name, status="done").to_dict()
+        data.pop("style")
+        (folder / "job.json").write_text(json.dumps(data), encoding="utf-8")
+        assert rn.RunManager(tmp_path, start_worker=False).listing()[0]["style"] == "standard"
 
     def test_a_second_run_does_not_start_while_the_first_is_running(self, rig):
         r = rig(behave=lambda a, rig_: FakeProc(0, hold=True))

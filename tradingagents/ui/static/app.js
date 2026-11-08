@@ -10,7 +10,7 @@ const PRETTY = {anthropic: "Anthropic (Claude)", openai: "OpenAI", google: "Goog
   minimax: "MiniMax", "minimax-cn": "MiniMax (China)", openrouter: "OpenRouter", mistral: "Mistral", kimi: "Kimi (Moonshot)", groq: "Groq",
   nvidia: "NVIDIA NIM", chatgpt: "ChatGPT plan (sign-in)", ollama: "Ollama (runs on this computer)", openai_compatible: "Other OpenAI-compatible"};
 const FRIENDLY = {TRADINGAGENTS_LLM_PROVIDER: "provider", TRADINGAGENTS_QUICK_THINK_LLM: "quick model", TRADINGAGENTS_DEEP_THINK_LLM: "deep model",
-  TRADINGAGENTS_RESEARCH_PASSES: "research passes", SEC_EDGAR_USER_AGENT: "SEC contact", TRADINGAGENTS_NO_SELLOFF_RULES: "selloff rules",
+  TRADINGAGENTS_RESEARCH_PASSES: "research passes", TRADINGAGENTS_INVESTING_STYLE: "investing style", SEC_EDGAR_USER_AGENT: "SEC contact", TRADINGAGENTS_NO_SELLOFF_RULES: "selloff rules",
   TRADINGAGENTS_NO_SCORECARD: "shared scorecard"};
 const FIELD_FOR = {"env.dotenv": "f-provider", "data.sec": "f-sec", "data.fred": "f-fred", "data.quiver": "f-quiver", "data.alphavantage": "f-alpha"};
 const NEW_DATA_KEYS = {"f-fred": "FRED_API_KEY", "f-quiver": "QUIVER_API_KEY", "f-alpha": "ALPHA_VANTAGE_API_KEY"};
@@ -116,7 +116,7 @@ async function runChecks(ids, forceLive) {
 // ---------------------------------------------------------------- the configuration form
 const providerInfo = id => state.choices.providers.find(p => p.id === id);
 const snapshot = () => ({provider: $("f-provider").value, quick: $("f-quick").value.trim(), deep: $("f-deep").value.trim(),
-  passes: $("f-passes").value, sec: $("f-sec").value.trim(), selloff: $("f-selloff").checked, scorecard: $("f-scorecard").checked});
+  passes: $("f-passes").value, style: $("f-style").value, sec: $("f-sec").value.trim(), selloff: $("f-selloff").checked, scorecard: $("f-scorecard").checked});
 
 function fillForm() {
   const eff = state.effective, vals = state.settings.values, sec = state.settings.secrets;
@@ -126,6 +126,8 @@ function fillForm() {
   const opts = state.choices.passes.slice(); if (opts.indexOf(eff.passes) < 0) opts.push(eff.passes);
   $("f-passes").innerHTML = opts.sort((a, b) => a - b).map(n => `<option>${n}</option>`).join("");
   $("f-passes").value = String(eff.passes);
+  $("f-style").innerHTML = state.choices.styles.map(s => `<option value="${esc(s.id)}">${esc(s.label)}</option>`).join("");
+  $("f-style").value = vals.TRADINGAGENTS_INVESTING_STYLE || "standard"; styleHint();
   $("f-selloff").checked = vals.TRADINGAGENTS_NO_SELLOFF_RULES !== "1";
   $("f-scorecard").checked = vals.TRADINGAGENTS_NO_SCORECARD !== "1";
   $("f-sec").value = vals.SEC_EDGAR_USER_AGENT || "";
@@ -156,6 +158,8 @@ function providerChanged(userChange) {
   }
 }
 
+function styleHint() { const x = state.choices.styles.find(s => s.id === $("f-style").value); $("h-fstyle").textContent = x ? x.help : ""; }
+
 function costLine() {
   const n = +$("f-passes").value, usd = (0.13 + 0.0675 * (n - 1)).toFixed(2), min = (4.5 + 0.45 * (n - 1)).toFixed(0);
   $("h-cost").textContent = `About $${usd} and ${min} minutes per analysis (measured with Anthropic Haiku and Sonnet; other providers differ). ` +
@@ -169,6 +173,7 @@ function collectUpdates() {
   diff("TRADINGAGENTS_QUICK_THINK_LLM", now.quick, initial.quick);
   diff("TRADINGAGENTS_DEEP_THINK_LLM", now.deep, initial.deep);
   diff("TRADINGAGENTS_RESEARCH_PASSES", now.passes, initial.passes);
+  if (now.style !== initial.style) u.TRADINGAGENTS_INVESTING_STYLE = now.style === "standard" ? null : now.style;
   diff("SEC_EDGAR_USER_AGENT", now.sec, initial.sec);
   if (now.selloff !== initial.selloff) u.TRADINGAGENTS_NO_SELLOFF_RULES = now.selloff ? null : "1";
   if (now.scorecard !== initial.scorecard) u.TRADINGAGENTS_NO_SCORECARD = now.scorecard ? null : "1";
@@ -225,6 +230,7 @@ document.addEventListener("toggle", e => { const g = e.target.dataset && e.targe
 $("recheck").addEventListener("click", () => runChecks(null));
 $("f-provider").addEventListener("change", () => providerChanged(true));
 $("f-passes").addEventListener("change", costLine);
+$("f-style").addEventListener("change", styleHint);
 $("show-key").addEventListener("click", e => { const f = $("f-key"), show = f.type === "password"; f.type = show ? "text" : "password"; e.target.textContent = show ? "Hide" : "Show"; e.target.setAttribute("aria-pressed", String(show)); });
 $("config-form").addEventListener("submit", e => { e.preventDefault(); saveSettings(false); });
 $("save-test").addEventListener("click", () => saveSettings(true));

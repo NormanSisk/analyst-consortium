@@ -30,6 +30,7 @@ from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
 
 import tradingagents
+from tradingagents.agents.style import style_name
 from tradingagents.ui import exports
 from tradingagents.ui import runs as run_tools
 from tradingagents.ui import settings_store as store
@@ -63,6 +64,7 @@ class RunRequest(BaseModel):
     depth: int
     passes: int
     language: str = Field(default="English", max_length=60)
+    style: str = Field(default="standard", max_length=20)
     holdings: str | None = Field(default=None, max_length=200)
     selloff: bool = True
     scorecard: bool = True
@@ -104,6 +106,7 @@ def build_state(dotenv_path: Path | None = None) -> dict:
                           for p in store.providers()],
             "models": {p: list(known.get(p, [])) for p in store.providers()},
             "passes": PASSES_OPTIONS,
+            "styles": [{"id": s, "label": run_tools.STYLE_LABELS[s], "help": run_tools.STYLE_HELP[s]} for s in run_tools.STYLES],
         },
     }
 
@@ -138,11 +141,12 @@ def build_run_options(manager: run_tools.RunManager | None = None) -> dict:
         "passes": options,
         "costs": {str(n): run_tools.estimate(provider, quick, deep, n) for n in options},
         "languages": list(run_tools.LANGUAGES),
+        "styles": [{"id": s, "label": run_tools.STYLE_LABELS[s], "help": run_tools.STYLE_HELP[s]} for s in run_tools.STYLES],
         "holdings": [{"id": name, "positions": b["positions"], "cash": b["cash"], "currency": b["currency"],
                       "profile": b["profile"], "folder": b["folder"]} for name, b in books.items()],
         "holdings_folders": [str(f) for f in holdings_folders(cfg)],
         "defaults": {"depth": depth if depth in run_tools.DEPTH_VALUES else 1, "passes": passes, "language": language,
-                     "open_report": True,
+                     "open_report": True, "style": style_name(),
                      "selloff": env.get("TRADINGAGENTS_NO_SELLOFF_RULES") != "1",
                      "scorecard": env.get("TRADINGAGENTS_NO_SCORECARD") != "1"},
         "provider": {"id": provider, "quick": quick, "deep": deep, "key_env": key_env,

@@ -38,6 +38,8 @@ function fillRunForm() {
     return `<option value="${esc(h.id)}">${esc(h.id)} (${esc(bits.join(", "))})</option>`;
   }).join("");
   $("r-selloff").checked = d.selloff; $("r-scorecard").checked = d.scorecard; $("r-open").checked = d.open_report !== false;
+  $("r-style").innerHTML = o.styles.map(s => `<option value="${esc(s.id)}">${esc(s.label)}</option>`).join("");
+  $("r-style").value = d.style || "standard"; updateStyleHint();
   updateParsed(); updateDateNote(); updateDepthHint(); updateHoldingsHint(); updateLanguage(); updateEstimate();
 }
 
@@ -52,6 +54,8 @@ function updateDateNote() {
   note.hidden = !past;
   note.textContent = past ? "NOTE: this is not today. Data that only exists for today (the company profile, insider trades and financial statements) is left out of an earlier-dated run, so the analysis is thinner." : "";
 }
+
+function updateStyleHint() { const x = runOpts.styles.find(s => s.id === $("r-style").value); $("h-style").textContent = x ? x.help : ""; }
 
 function updateDepthHint() { const x = runOpts.depths.find(d => String(d.value) === $("r-depth").value); $("h-depth").textContent = x ? x.help : ""; }
 
@@ -105,7 +109,7 @@ async function submitRun(e) {
   try {
     const r = await api("/api/runs", {tickers: uniqueTickers(), date: $("r-date").value, analysts, depth: +$("r-depth").value,
       passes: +$("r-passes").value, language, holdings: $("r-holdings").value || null,
-      selloff: $("r-selloff").checked, scorecard: $("r-scorecard").checked, open_report: $("r-open").checked});
+      selloff: $("r-selloff").checked, scorecard: $("r-scorecard").checked, open_report: $("r-open").checked, style: $("r-style").value});
     res.textContent = r.started.length === 1 ? "Started. It is listed under Your analyses." : r.started.length + " analyses queued. They run one after another and are listed under Your analyses.";
     await refreshRuns();
     const h = $("jobs-h"); h.tabIndex = -1; h.focus();
@@ -117,6 +121,8 @@ async function submitRun(e) {
 }
 
 // ---------------------------------------------------------------- the list
+const styleLabel = id => ((runOpts && runOpts.styles.find(s => s.id === id)) || {label: id}).label;
+
 function elapsedText(j) {
   if (j.status === "running") return "Running for " + dur(j.elapsed || 0) + ". Expect roughly " + j.expected_minutes + " minutes.";
   if (j.status === "waiting") return j.place ? "Waiting: number " + j.place + " in line." : "Waiting.";
@@ -144,6 +150,7 @@ function resultHtml(j) {
   const r = j.result; if (!r) return "";
   const parts = [ratingBlock(r)];
   if (r.score !== null && r.score !== undefined) parts.push(`<p>Conviction score: <strong>${r.score} of 100</strong></p>`);
+  if (j.style && j.style !== "standard") parts.push(`<p><span class="tag">LENS</span> This analysis used the <strong>${esc(styleLabel(j.style))}</strong> investing style: it changes how the same facts are weighed, and it has not been tested against outcomes.</p>`);
   if (r.borderline_text) parts.push(`<p>${r.borderline ? '<span class="tag">BORDERLINE</span> ' : ""}${esc(r.borderline_text)}</p>`);
   if (r.panel && r.panel.summary) {
     const split = r.panel.label === "borderline";
@@ -177,7 +184,7 @@ function jobItem(j) {
   const st = JOB_STATUS[j.status] || ["?", String(j.status).toUpperCase()];
   const labels = (runOpts ? runOpts.analysts : []).filter(a => j.analysts.indexOf(a.id) >= 0).map(a => a.label.replace(" analyst", "")).join(", ");
   const depth = runOpts ? (runOpts.depths.find(d => d.value === j.depth) || {}).label : "";
-  const meta = `${depth || "Depth " + j.depth} research, ${plural(j.passes, "pass", "passes")}, analysts: ${labels || j.analysts.join(", ")}, language: ${j.language}, holdings: ${j.holdings || "none"}.`;
+  const meta = `${depth || "Depth " + j.depth} research, ${plural(j.passes, "pass", "passes")}, analysts: ${labels || j.analysts.join(", ")}, language: ${j.language}, holdings: ${j.holdings || "none"}.` + (j.style && j.style !== "standard" ? ` Investing style: ${styleLabel(j.style)}.` : "");
   let body = "";
   if (ACTIVE.indexOf(j.status) >= 0) {
     body += `<p class="elapsed" data-elapsed>${esc(elapsedText(j))}</p>` + stagesHtml(j) +
@@ -470,6 +477,7 @@ $("r-date").addEventListener("input", updateDateNote);
 $("r-depth").addEventListener("change", () => { updateDepthHint(); updateEstimate(); });
 $("r-passes").addEventListener("change", updateEstimate);
 $("r-holdings").addEventListener("change", updateHoldingsHint);
+$("r-style").addEventListener("change", updateStyleHint);
 $("r-language").addEventListener("change", () => { updateLanguage(); if (!$("r-language-other").hidden) $("r-language-other").focus(); });
 
 (async function initRuns() {

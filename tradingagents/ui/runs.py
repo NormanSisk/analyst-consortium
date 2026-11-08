@@ -33,6 +33,9 @@ from typing import Any
 
 from tradingagents.agents.conviction import borderline_note, read_score
 from tradingagents.agents.rating import is_review, run_rating
+from tradingagents.agents.style import HELP as STYLE_HELP
+from tradingagents.agents.style import LABELS as STYLE_LABELS
+from tradingagents.agents.style import STYLES
 from tradingagents.dataflows.symbols import normalize_symbol, safe_ticker_component
 from tradingagents.doctor import scrub
 from tradingagents.live_events import FILE_NAME, read_events
@@ -179,6 +182,10 @@ def clean_request(raw: Mapping[str, Any], *, today: _date, holdings: Mapping[str
     if isinstance(passes, bool) or not isinstance(passes, int) or not low <= passes <= high:
         raise RequestError(f"Research passes must be a whole number from {low} to {high}.")
 
+    style = str(raw.get("style") or "standard").strip().lower()
+    if style not in STYLES:
+        raise RequestError("Choose Standard or Growth as the investing style.")
+
     language = str(raw.get("language") or "English").strip()
     if language not in LANGUAGES and not (len(language) <= 40 and LANGUAGE.fullmatch(language)):
         raise RequestError("The report language must be a language name such as English or Turkish.")
@@ -191,7 +198,7 @@ def clean_request(raw: Mapping[str, Any], *, today: _date, holdings: Mapping[str
         holdings_name = str(book)
 
     return {"tickers": tickers, "date": day.isoformat(), "analysts": analysts, "depth": depth, "passes": passes,
-            "language": language, "holdings": holdings_name,
+            "language": language, "holdings": holdings_name, "style": style,
             "selloff": bool(raw.get("selloff", True)), "scorecard": bool(raw.get("scorecard", True)),
             "open_report": bool(raw.get("open_report", True))}
 
@@ -216,6 +223,7 @@ def build_env(job: "Job", base: Mapping[str, str]) -> dict[str, str]:
         "TRADINGAGENTS_MAX_DEBATE_ROUNDS": str(job.depth),
         "TRADINGAGENTS_MAX_RISK_ROUNDS": str(job.depth),
         "TRADINGAGENTS_RESEARCH_PASSES": str(job.passes),
+        "TRADINGAGENTS_INVESTING_STYLE": job.style,
         "TRADINGAGENTS_LLM_PROVIDER": job.provider,
         "TRADINGAGENTS_QUICK_THINK_LLM": job.quick,
         "TRADINGAGENTS_DEEP_THINK_LLM": job.deep,
@@ -554,6 +562,7 @@ class Job:
     quick: str
     deep: str
     open_report: bool = True                # open the HTML report in the browser when this analysis finishes
+    style: str = "standard"                 # the investing-style lens the analysts used (standard or growth)
     notes: list[str] = field(default_factory=list)
     status: str = "waiting"                 # waiting, running, done, failed, stopped
     created: float = 0.0
@@ -665,7 +674,8 @@ class RunManager:
                                 depth=request["depth"], passes=request["passes"], language=request["language"],
                                 holdings=request["holdings"], selloff=request["selloff"], scorecard=request["scorecard"],
                                 provider=provider, quick=quick, deep=deep, notes=notes, created=self._now(),
-                                open_report=bool(request.get("open_report", True))))
+                                open_report=bool(request.get("open_report", True)),
+                                style=str(request.get("style", "standard"))))
             for job in made:                # nothing is queued unless every symbol in the request can be
                 self._jobs.append(job)
                 self._save(job)

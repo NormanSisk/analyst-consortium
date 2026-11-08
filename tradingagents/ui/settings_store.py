@@ -20,6 +20,7 @@ from pathlib import Path
 
 from dotenv import find_dotenv, set_key, unset_key
 
+from tradingagents.agents.style import STYLES
 from tradingagents.llm_clients.api_key_env import PROVIDER_API_KEY_ENV
 
 MODEL_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/\-]{0,99}$")
@@ -48,6 +49,7 @@ def registry() -> dict[str, Setting]:
         Setting("TRADINGAGENTS_QUICK_THINK_LLM", "model", "Quick model"),
         Setting("TRADINGAGENTS_DEEP_THINK_LLM", "model", "Deep model"),
         Setting("TRADINGAGENTS_RESEARCH_PASSES", "int", "Research passes", low=1, high=15),
+        Setting("TRADINGAGENTS_INVESTING_STYLE", "choice", "Investing style", tuple(STYLES)),
         Setting("SEC_EDGAR_USER_AGENT", "contact", "SEC contact (name and email)"),
         Setting("TRADINGAGENTS_NO_SELLOFF_RULES", "switch", "Selloff rules switched off"),
         Setting("TRADINGAGENTS_NO_SCORECARD", "switch", "Shared scorecard switched off"),
@@ -68,7 +70,7 @@ def validate(setting: Setting, value: str) -> str:
     text = value.strip()
     if setting.kind == "choice":
         if text.lower() not in setting.choices:
-            raise ValueError(f"{setting.label}: choose one of the listed providers.")
+            raise ValueError(f"{setting.label}: choose one of the listed options.")
         return text.lower()
     if setting.kind == "int":
         if not re.fullmatch(r"\d{1,3}", text) or not setting.low <= int(text) <= setting.high:

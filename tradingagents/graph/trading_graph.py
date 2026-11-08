@@ -11,6 +11,7 @@ import tradingagents
 from tradingagents.agents.context import build_instrument_context, resolve_instrument_identity
 from tradingagents.agents.rating import run_rating
 from tradingagents.agents.structured import fallback_counts, reset_fallback_counts
+from tradingagents.agents.style import style_name
 from tradingagents.dataflows.config import run_config, run_config_context, set_config
 from tradingagents.dataflows.date_window import get_current_date, is_historical
 from tradingagents.dataflows.symbols import safe_ticker_component
@@ -273,6 +274,7 @@ class TradingAgentsGraph:
             "max_debate_rounds": cfg.get("max_debate_rounds"),
             "max_risk_discuss_rounds": cfg.get("max_risk_discuss_rounds"),
             "research_passes": cfg.get("research_passes"),
+            "investing_style": style_name(),
             "output_language": cfg.get("output_language"),
             "data_vendors": dict(cfg.get("data_vendors") or {}),
             "tool_vendors": dict(cfg.get("tool_vendors") or {}),
