@@ -24,10 +24,12 @@
   --border-w:4px;
   --page-grad:none; --page-img:none;      /* high contrast is always a plain black page */
 }
+/* Text size: Larger is the starting size (20px), with one step down and one up from the middle pair. */
 html { font-size:20px; }
-html[data-size="small"] { font-size:17px; }
-html[data-size="large"] { font-size:24px; }
-html[data-size="xlarge"] { font-size:30px; }
+html[data-size="small"] { font-size:14px; }
+html[data-size="normal"] { font-size:17px; }
+html[data-size="large"] { font-size:20px; }
+html[data-size="xlarge"] { font-size:26px; }
 * { box-sizing:border-box; }
 /* A trading-themed backdrop: a soft gradient and a faint candlestick chart, with a thin color bar on top. */
 html[data-bg="market"] body { background-image:var(--page-img), var(--page-grad); background-size:640px 400px, cover;

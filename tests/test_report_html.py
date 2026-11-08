@@ -139,36 +139,83 @@ def test_the_page_heading_is_the_ticker_and_its_rating(tmp_path):
 
 
 @pytest.mark.unit
-def test_the_header_carries_the_official_logo_unaltered(tmp_path):
-    from importlib.resources import files
-
-    logo = files("tradingagents").joinpath("assets/tauric-logo.svg").read_text(encoding="utf-8").strip()
+def test_the_header_bears_the_programs_own_name_and_says_what_it_is_built_on(tmp_path):
     page = _html(tmp_path)
     header = page[page.index("<header"):page.index("</header>")]
-    assert logo in header                           # drawn in the page, nothing fetched
-    assert 'href="https://tauric.ai"' in header and 'aria-label="Tauric Research"' in header
-    assert header.index('class="logo"') < header.index("<h1")   # leads the header, above the title
+    assert '<p class="brand">Analyst Consortium</p>' in header
+    assert re.search(r'<p class="built-on">Built on <a href="https://github.com/TauricResearch/TradingAgents"[^>]*>TradingAgents</a></p>', header)
+    assert header.index('class="brand"') < header.index('class="built-on"') < header.index("<h1")      # the name leads, then the ticker
+    assert "Analyst Consortium report</title>" in page and "TradingAgents report" not in page
+
+
+@pytest.mark.unit
+def test_the_makers_logo_and_name_are_not_in_the_header_and_the_page_draws_no_pictures(tmp_path):
+    page = _html(tmp_path)
+    header = page[page.index("<header"):page.index("</header>")]
+    assert "<svg" not in page and "tauric.ai" not in page                      # their logo is their brand, not ours
+    assert "Tauric" not in re.sub(r"<[^>]+>", "", header)                      # the name a reader sees (the link may still point at their repository)
+    assert "logo" not in header.lower()
+
+
+@pytest.mark.unit
+def test_the_version_line_names_the_program_and_the_engine_it_is_built_on(tmp_path):
+    page = _html(tmp_path)
+    assert "Analyst Consortium, built on TradingAgents 1.2.3" in page[page.index("<header"):page.index("</header>")]
 
 
 @pytest.mark.unit
 def test_the_page_credits_its_maker_in_a_line_of_text(tmp_path):
     page = _html(tmp_path)
     footer = page[page.index('<footer class="credit">'):page.index("</footer>")]
-    assert re.sub(r"<[^>]+>", "", footer).split() == ["TradingAgents", "powered", "by", "Tauric", "Research"]
-    # The logo already leads to tauric.ai; the credit leads to the project and the org.
+    # The Apache-2.0 credit stays, in words and links: the project it is built on, its maker and the license.
+    assert re.sub(r"<[^>]+>", "", footer).split() == ["Built", "on", "TradingAgents", "by", "Tauric", "Research", "(Apache-2.0)"]
     assert 'href="https://github.com/TauricResearch/TradingAgents"' in footer
     assert 'href="https://github.com/TauricResearch"' in footer and "tauric.ai" not in footer
     assert "<svg" not in footer and 'class="brand"' in footer
     assert page.index("</main>") < page.index('<footer class="credit">')
 
 
-@pytest.mark.unit
-def test_the_packaged_logo_stays_inert(tmp_path):
-    # The logo is drawn inside every report, so it may only ever hold shapes:
-    # no script, event handler, link, embedded document or external reference.
-    from importlib.resources import files
+# ---------------------------------------------------------------- pages and orphaned headings
+def _print_css(page):
+    css = page[page.index("<style>"):page.index("</style>")]
+    return css[css.index("@media print"):]
 
-    logo = files("tradingagents").joinpath("assets/tauric-logo.svg").read_text(encoding="utf-8")
-    tags = set(re.findall(r"<\s*([a-zA-Z][\w:-]*)", logo))
-    assert tags <= {"svg", "path", "rect", "circle", "g", "defs", "clipPath", "linearGradient", "stop"}
-    assert not re.search(r"\son\w+\s*=|href|url\(|@import|javascript:|<!entity|<!doctype", logo, re.IGNORECASE)
+
+@pytest.mark.unit
+def test_no_heading_level_may_end_a_printed_page(tmp_path):
+    css = _print_css(_html(tmp_path))
+    # every level, including the agents' own headings (h5, h6), and the lines that introduce a list or table
+    assert "h1, h2, h3, h4, h5, h6, main .keep-next { break-after: avoid; }" in css
+    assert "main h3, main h4 { break-after: avoid; }" not in css                 # the old rule covered only two levels
+    assert "main h2 { break-before: page;" in css                                 # each section still starts a page
+
+
+@pytest.mark.unit
+def test_tables_and_other_blocks_are_kept_whole_with_headers_that_repeat(tmp_path):
+    css = _print_css(_html(tmp_path))
+    assert "table { break-inside: avoid; }" in css and "tr, pre, blockquote { break-inside: avoid; }" in css
+    assert "thead { display: table-header-group; }" in css and "orphans: 3; widows: 3;" in css
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("markdown, marked", [
+    ("**Summary Table**", True),                                  # one bold line used as a heading
+    ("Consensus (as of 2026-11-08):", True),                      # introduces a table or list
+    ("Reference levels, with `code` in it:", True),
+    ("**Risks:**", True),
+    ("**Note:** the stock fell on its own.", False),              # a sentence with a bold lead-in is ordinary text
+    ("**One** then **two**", False),
+    ("A normal sentence that ends with a full stop.", False),
+    ("A question we ask: why? Because.", False),
+])
+def test_lines_that_introduce_what_follows_are_marked_to_stay_with_it(tmp_path, markdown, marked):
+    page = _html(tmp_path, news_report=f"{markdown}\n\nPrice | Level\n--- | ---\nClose | 1\n")
+    paragraph = re.search(r"<p( class=\"keep-next\")?>([^\n]*)</p>", page[page.index("<main>"):])
+    assert bool(paragraph.group(1)) is marked, paragraph.group(0)
+
+
+@pytest.mark.unit
+def test_marked_lines_carry_only_the_class_the_program_adds(tmp_path):
+    page = _html(tmp_path, news_report='**Summary Table**\n\n<p class="x" onclick="y()">hostile:</p>')
+    assert '<p class="keep-next"><strong>Summary Table</strong></p>' in page
+    assert not re.search(r"<[^>]*onclick", page) and '<p class="x"' not in page            # hostile markup stays escaped text

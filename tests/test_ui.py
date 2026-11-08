@@ -248,6 +248,27 @@ class TestApi:
         assert 'data-bg="plain"' in html and 'data-bg="market"' in html and 'setBg(' in js
         assert "http" not in css.replace("http://www.w3.org", "")        # no remote images or fonts
 
+    def test_larger_is_the_starting_text_size_with_a_step_down_and_a_step_up(self):
+        from pathlib import Path
+        css = (Path(server.STATIC) / "app.css").read_text(encoding="utf-8")
+        html = (Path(server.STATIC) / "index.html").read_text(encoding="utf-8")
+        sizes = {name: int(px) for name, px in re.findall(r'html\[data-size="(\w+)"\]\s*\{\s*font-size:(\d+)px', css)}
+        assert sizes == {"small": 14, "normal": 17, "large": 20, "xlarge": 26}      # four steps, each bigger than the last
+        assert re.search(r"html\s*\{\s*font-size:20px;", css)                      # no choice made yet: the Larger size
+        assert '<html lang="en" data-theme="light" data-size="large"' in html
+        pressed = dict(re.findall(r'data-size="(\w+)" aria-pressed="(\w+)">', html))
+        assert pressed == {"small": "false", "normal": "false", "large": "true", "xlarge": "false"}
+        labels = dict(re.findall(r'data-size="(\w+)" aria-pressed="\w+">(\w+)</button>', html))
+        assert labels == {"small": "Smaller", "normal": "Normal", "large": "Larger", "xlarge": "Largest"}
+
+    def test_an_earlier_text_size_choice_is_carried_to_the_size_it_showed(self):
+        from pathlib import Path
+        js = (Path(server.STATIC) / "app.js").read_text(encoding="utf-8")
+        assert 'SIZE_KEY = "ac-size-v2"' in js and 'pref(SIZE_KEY, v)' in js           # the new meaning is stored under a new key
+        mapping = dict(re.findall(r'(\w+): "(\w+)"', re.search(r"OLD_SIZE_TO_NEW = \{(.*?)\}", js).group(1)))
+        assert mapping == {"small": "normal", "normal": "large", "large": "xlarge", "xlarge": "xlarge"}
+        assert 'setSize(savedSize())' in js and '|| "large"' in js                    # nothing saved: start at Larger
+
     def test_the_static_files_are_served(self, dotenv):
         c = client(dotenv)
         assert "council-token" in c.get("/").text
