@@ -56,6 +56,7 @@ _SECTIONS = (
     )),
     ("II. Research Team Decision", "2_research", (
         ("Research Panel", "panel.md", ("research_panel", "summary")),
+        ("Scorecard", "scorecard.md", ("scorecard",)),
         ("Bull Researcher", "bull.md", ("investment_debate_state", "bull_history")),
         ("Bear Researcher", "bear.md", ("investment_debate_state", "bear_history")),
         ("Research Manager", "manager.md", ("investment_plan",)),

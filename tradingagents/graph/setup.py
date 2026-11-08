@@ -21,6 +21,7 @@ from tradingagents.agents import (
     create_trader,
 )
 from tradingagents.agents.analysts.turn import WRAP_UP
+from tradingagents.agents.scorecard import create_scorecard_node
 from tradingagents.agents.state import AgentState
 
 from .analyst_execution import build_analyst_execution_plan
@@ -174,6 +175,9 @@ class GraphSetup:
         if memory_node is not None:
             workflow.add_node("Memory Log", memory_node)
             first_steps.append("Memory Log")
+        # The scorecard is worked out in code from the data tools, alongside the analysts.
+        workflow.add_node("Scorecard", create_scorecard_node())
+        first_steps.append("Scorecard")
         for node in first_steps:
             workflow.add_edge(START, node)
         workflow.add_edge(first_steps, "Research Panel" if panel else "Bull Researcher")

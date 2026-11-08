@@ -1,3 +1,4 @@
+from tradingagents.agents.scorecard import scorecard_block
 from tradingagents.agents.selloff import selloff_rules
 from tradingagents.agents.context import (
     get_instrument_context_from_state,
@@ -43,7 +44,7 @@ Resources available:
 Market research report: {market_research_report}
 Social media sentiment report: {sentiment_report}
 Latest world affairs news: {news_report}
-{fundamentals_label}: {fundamentals_report}
+{fundamentals_label}: {fundamentals_report}{scorecard_block(state)}
 Conversation history of the debate: {history}
 Last bear argument: {current_response}
 Use this information to deliver a compelling bull argument, refute the bear's concerns, and engage in a dynamic debate that demonstrates the strengths of the bull position.
