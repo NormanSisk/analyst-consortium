@@ -18,6 +18,7 @@ so that:
 
 from __future__ import annotations
 
+import re
 from enum import StrEnum
 from typing import Literal
 
@@ -56,6 +57,38 @@ def _coerce_optional_float(value):
         return float(cleaned)
     except ValueError:
         return None
+
+
+# The 0-100 conviction score is a finer reading than the five-tier rating: each rating owns a
+# band, so a score near the edge of its band shows a call that is close to the next rating.
+SCORE_BANDS = {
+    "Sell": (0, 20),
+    "Underweight": (21, 40),
+    "Hold": (41, 59),
+    "Overweight": (60, 79),
+    "Buy": (80, 100),
+}
+
+
+def _coerce_optional_score(value):
+    """A whole number from 0 to 100, or None.
+
+    Models write "45", "45/100", "about 45" or a decimal. A usable number is rounded; anything
+    else is dropped like a placeholder, so one bad field does not fail the whole decision.
+    """
+    if value is None or isinstance(value, bool):
+        return None
+    if isinstance(value, str):
+        text = value.strip().split("/")[0].strip().rstrip("%")
+        try:
+            value = float(text)
+        except ValueError:
+            return None
+    try:
+        score = round(float(value))
+    except (TypeError, ValueError, OverflowError):
+        return None
+    return score if 0 <= score <= 100 else None
 
 
 # ---------------------------------------------------------------------------
@@ -252,17 +285,38 @@ class PortfolioDecision(BaseModel):
     )
     price_target: float | None = Field(
         default=None,
-        description="Optional target price in the instrument's quote currency.",
+        description=(
+            "Optional target price in the instrument's quote currency. Give one only when the analysts' reports "
+            "support it, for example a reference price level worked out from a stated multiple in the valuation "
+            "report, and say in the thesis where it comes from. A stop, support or resistance level is not a "
+            "target, and neither is a price for a rating that advises against buying. Do not copy the Wall Street "
+            "mean or high target; otherwise leave it empty. The report shows the target only when the summary or "
+            "thesis states the same number."
+        ),
     )
     time_horizon: str | None = Field(
         default=None,
         description="Optional recommended holding period, e.g. '3-6 months'.",
+    )
+    conviction_score: int | None = Field(
+        default=None,
+        description=(
+            "A whole number from 0 to 100 placing the call more finely than the rating. The rating owns a band: "
+            "Sell 0-20, Underweight 21-40, Hold 41-59, Overweight 60-79, Buy 80-100, and the score must lie inside "
+            "the band of the rating chosen. Within the band, a score near its edge means the call is close to the "
+            "neighbouring rating; say in the thesis what would tip it over."
+        ),
     )
 
     @field_validator("price_target", mode="before")
     @classmethod
     def _nullish_float_to_none(cls, v):
         return _coerce_optional_float(v)
+
+    @field_validator("conviction_score", mode="before")
+    @classmethod
+    def _score_or_none(cls, v):
+        return _coerce_optional_score(v)
 
 
 def render_pm_decision(decision: PortfolioDecision) -> str:
@@ -282,10 +336,48 @@ def render_pm_decision(decision: PortfolioDecision) -> str:
     ]
     # Named even when absent: a missing line reads as a field nobody asked for,
     # so a reader cannot tell "no target" from "target not reported".
-    target = decision.price_target if decision.price_target is not None else "not provided"
-    parts.extend(["", f"**Price Target**: {target}"])
+    parts.extend(["", f"**Price Target**: {_target_text(decision)}"])
     parts.extend(["", f"**Time Horizon**: {decision.time_horizon or 'not provided'}"])
+    parts.extend(["", f"**Conviction Score**: {_score_text(decision)}"])
     return "\n".join(parts)
+
+
+def _mentions_number(text: str, number: float) -> bool:
+    """Whether ``text`` contains ``number`` as a whole figure, in any ordinary way of writing it.
+
+    '239' and '239.0' and '$239' count for 239.0; '12.58' does not count for 2.58, nor '239.5' for 239.
+    """
+    forms = {f"{number:g}", f"{number:.1f}", f"{number:.2f}", f"{number:,.2f}"}
+    if number == int(number):
+        forms |= {str(int(number)), f"{int(number):,}"}
+    return any(re.search(rf"(?<![\d.,]){re.escape(form)}(?!\.?\d)", text) for form in forms)
+
+
+def _target_text(decision: PortfolioDecision) -> str:
+    """The price target as shown: only a number the summary or thesis also states, so it comes with its reason.
+
+    Models have filled the field with a stop, a moving average or a bare number that the text never mentions,
+    and a target nobody can trace reads as more authoritative than it is.
+    """
+    target = decision.price_target
+    if target is None:
+        return "not provided"
+    if _mentions_number(f"{decision.executive_summary} {decision.investment_thesis}", target):
+        return str(target)
+    return (f"not provided (the model suggested {target:g} but the summary and thesis do not say where it comes from, "
+            "so it is not offered as a target)")
+
+
+def _score_text(decision: PortfolioDecision) -> str:
+    """'45 of 100 (Hold band 41-59)', saying so when the score and the rating disagree."""
+    score = decision.conviction_score
+    if score is None:
+        return "not provided"
+    low, high = SCORE_BANDS[decision.rating.value]
+    if low <= score <= high:
+        return f"{score} of 100 ({decision.rating.value} band {low}-{high})"
+    return (f"{score} of 100, outside the {decision.rating.value} band {low}-{high}; "
+            "the rating is what counts and the score is unreliable")
 
 
 # ---------------------------------------------------------------------------
