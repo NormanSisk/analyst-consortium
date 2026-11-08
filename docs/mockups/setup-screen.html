@@ -1,0 +1,332 @@
+<!doctype html>
+<html lang="en" data-theme="light" data-size="normal">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Analyst Council - Setup check (design mock)</title>
+<style>
+/* Colour tokens. Every text/background pair below is checked by a script to be at least 7:1 (WCAG AAA). */
+:root, [data-theme="light"] {
+  --bg:#ffffff; --panel:#f3f5f7; --text:#111111; --muted:#2b2b2b; --line:#111111; --focus:#0040c8;
+  --btn-bg:#0b3d91; --btn-text:#ffffff; --btn2-bg:#ffffff; --btn2-text:#0b3d91; --link:#0b3d91;
+  --ok-bg:#dff3e4; --ok-fg:#0a3d1c; --warn-bg:#fff0b8; --warn-fg:#4a3200; --bad-bg:#fde1e1; --bad-fg:#6e0000;
+  --off-bg:#e6e6e6; --off-fg:#1f1f1f; --skip-bg:#e1eafb; --skip-fg:#0e2a63; --mock-bg:#111111; --mock-fg:#ffffff;
+  --border-w:2px;
+}
+[data-theme="dark"] {
+  --bg:#0a0a0a; --panel:#171717; --text:#f5f5f5; --muted:#e0e0e0; --line:#f5f5f5; --focus:#ffd400;
+  --btn-bg:#9cc2ff; --btn-text:#001a4d; --btn2-bg:#0a0a0a; --btn2-text:#9cc2ff; --link:#9cc2ff;
+  --ok-bg:#0f3a1d; --ok-fg:#c9f5d4; --warn-bg:#4a3a00; --warn-fg:#ffe9a0; --bad-bg:#5a0f0f; --bad-fg:#ffd1d1;
+  --off-bg:#2c2c2c; --off-fg:#f0f0f0; --skip-bg:#14305e; --skip-fg:#d6e4ff; --mock-bg:#f5f5f5; --mock-fg:#0a0a0a;
+  --border-w:2px;
+}
+[data-theme="contrast"] {
+  --bg:#000000; --panel:#000000; --text:#ffffff; --muted:#ffffff; --line:#ffffff; --focus:#ffff00;
+  --btn-bg:#ffff00; --btn-text:#000000; --btn2-bg:#000000; --btn2-text:#ffff00; --link:#ffff00;
+  --ok-bg:#000000; --ok-fg:#7cfc9a; --warn-bg:#000000; --warn-fg:#ffd400; --bad-bg:#000000; --bad-fg:#ff9a9a;
+  --off-bg:#000000; --off-fg:#e6e6e6; --skip-bg:#000000; --skip-fg:#a9d0ff; --mock-bg:#ffff00; --mock-fg:#000000;
+  --border-w:4px;
+}
+html { font-size:20px; }
+html[data-size="small"] { font-size:17px; }
+html[data-size="large"] { font-size:24px; }
+html[data-size="xlarge"] { font-size:30px; }
+* { box-sizing:border-box; }
+body { margin:0; background:var(--bg); color:var(--text); font-family:system-ui,"Segoe UI",Roboto,Arial,sans-serif; line-height:1.6; }
+.skip { position:absolute; left:-999px; top:0; background:var(--btn-bg); color:var(--btn-text); padding:.6rem 1rem; z-index:10; }
+.skip:focus { left:0; }
+a { color:var(--link); text-underline-offset:.2em; }
+:focus-visible { outline:4px solid var(--focus); outline-offset:3px; }
+.wrap { max-width:62rem; margin:0 auto; padding:1rem 1rem 4rem; }
+.mock { background:var(--mock-bg); color:var(--mock-fg); padding:.7rem 1rem; font-weight:700; text-align:center; }
+h1 { font-size:1.9rem; line-height:1.25; margin:1rem 0 .2rem; }
+h2 { font-size:1.45rem; margin:0 0 .6rem; }
+h3 { font-size:1.15rem; margin:0; }
+p { margin:.3rem 0; }
+.sub { color:var(--muted); margin-top:0; }
+button, select, input { font:inherit; color:inherit; }
+button { min-height:2.8rem; padding:.45rem 1rem; border:var(--border-w) solid var(--btn-bg); background:var(--btn-bg); color:var(--btn-text); border-radius:.45rem; font-weight:700; cursor:pointer; }
+button.secondary { background:var(--btn2-bg); color:var(--btn2-text); border-color:var(--btn2-text); }
+button[aria-pressed="true"] { outline:4px solid var(--text); outline-offset:2px; }
+button[aria-pressed="true"]::before { content:"\2713  "; }
+button:disabled { opacity:.6; cursor:wait; }
+select, input[type="text"], input[type="password"] { min-height:2.8rem; width:100%; padding:.4rem .6rem; border:var(--border-w) solid var(--line); background:var(--bg); border-radius:.45rem; }
+label, legend { font-weight:700; }
+.tools { display:grid; gap:.8rem 2rem; grid-template-columns:repeat(auto-fit,minmax(min(16rem,100%),1fr)); padding:1rem; background:var(--panel); border:var(--border-w) solid var(--line); border-radius:.6rem; margin:1rem 0; }
+fieldset { border:0; margin:0; padding:0; min-width:0; }
+.keyrow { display:flex; flex-wrap:wrap; gap:.5rem; }
+.keyrow input { flex:1 1 8rem; width:auto; min-width:0; }
+body { overflow-wrap:anywhere; }
+.row { display:flex; flex-wrap:wrap; gap:.5rem; margin-top:.4rem; }
+.radio { display:flex; align-items:center; gap:.6rem; margin:.3rem 0; min-height:2.6rem; }
+.radio input { width:1.5rem; height:1.5rem; accent-color:var(--btn-bg); }
+.summary { border:calc(var(--border-w) * 2) solid var(--line); border-radius:.7rem; padding:1rem 1.2rem; margin:1rem 0; background:var(--panel); }
+.summary .big { font-size:1.8rem; font-weight:800; margin:0; }
+.summary .counts { font-size:1.1rem; margin-top:.4rem; }
+section.card { border:var(--border-w) solid var(--line); border-radius:.7rem; padding:1rem 1.2rem 1.2rem; margin:1.4rem 0; background:var(--bg); }
+ul.checks { list-style:none; margin:0; padding:0; }
+li.check { display:grid; grid-template-columns:11.5rem 1fr auto; gap:.4rem 1rem; padding:.9rem 0; border-top:1px solid var(--line); align-items:start; }
+li.check:first-child { border-top:0; }
+.badge { display:inline-flex; align-items:center; gap:.5rem; font-weight:800; letter-spacing:.02em; padding:.35rem .7rem; border-radius:.45rem; border:var(--border-w) solid currentColor; min-width:11rem; justify-content:flex-start; }
+.badge.ok { background:var(--ok-bg); color:var(--ok-fg); } .badge.needs_setup { background:var(--warn-bg); color:var(--warn-fg); }
+.badge.not_working { background:var(--bad-bg); color:var(--bad-fg); } .badge.off { background:var(--off-bg); color:var(--off-fg); }
+.badge.skipped { background:var(--skip-bg); color:var(--skip-fg); }
+.tag { font-size:.85rem; font-weight:800; border:var(--border-w) solid var(--line); border-radius:.35rem; padding:.05rem .45rem; margin-left:.5rem; vertical-align:middle; }
+.fix, .adds { margin-top:.35rem; }
+.actions { display:flex; gap:.5rem; flex-wrap:wrap; }
+.editor { display:grid; gap:1rem 1.5rem; grid-template-columns:repeat(auto-fit,minmax(min(18rem,100%),1fr)); background:var(--panel); border:var(--border-w) solid var(--line); border-radius:.6rem; padding:1rem; margin:0 0 1rem; }
+.field p.hint { font-size:.9rem; color:var(--muted); }
+.result { font-weight:700; min-height:2rem; }
+.actions.col { flex-direction:column; align-items:stretch; min-width:0; }
+li.check > * { min-width:0; }
+html[data-size="xlarge"] li.check { grid-template-columns:1fr; }
+html[data-size="xlarge"] .badge { min-width:0; }
+.meta { margin:.15rem 0; }
+.switch { display:flex; align-items:center; gap:.6rem; min-height:2.6rem; }
+.switch input { width:1.6rem; height:1.6rem; accent-color:var(--btn-bg); }
+.note { border-left:6px solid var(--line); padding:.4rem 1rem; margin:1rem 0; background:var(--panel); }
+footer { margin-top:2rem; border-top:var(--border-w) solid var(--line); padding-top:1rem; }
+@media (max-width: 52rem) {
+  li.check { grid-template-columns:1fr; }
+  .badge { min-width:0; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition:none !important; animation:none !important; } }
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to the setup results</a>
+<div class="mock" role="note">DESIGN MOCK for checking readability. Nothing on this page is real, saved, or sent anywhere.</div>
+<div class="wrap">
+  <header>
+    <h1>Analyst Council: setup check</h1>
+    <p class="sub">Plain-words status of your AI connections, data sources and settings. Nothing here places a trade: Analyst Council only reads data and writes reports.</p>
+  </header>
+
+  <div class="tools" role="group" aria-label="Display and demo controls">
+    <fieldset>
+      <legend>Text size</legend>
+      <div class="row" id="sizes">
+        <button type="button" class="secondary" data-size="small" aria-pressed="false">Smaller</button>
+        <button type="button" class="secondary" data-size="normal" aria-pressed="true">Normal</button>
+        <button type="button" class="secondary" data-size="large" aria-pressed="false">Larger</button>
+        <button type="button" class="secondary" data-size="xlarge" aria-pressed="false">Largest</button>
+      </div>
+    </fieldset>
+    <fieldset>
+      <legend>Colours</legend>
+      <div class="row" id="themes">
+        <button type="button" class="secondary" data-theme="light" aria-pressed="true">Light</button>
+        <button type="button" class="secondary" data-theme="dark" aria-pressed="false">Dark</button>
+        <button type="button" class="secondary" data-theme="contrast" aria-pressed="false">High contrast</button>
+      </div>
+    </fieldset>
+    <fieldset>
+      <legend>Show me this situation (demo only)</legend>
+      <div class="radio"><input type="radio" name="state" id="s-healthy" value="healthy" checked><label for="s-healthy">Everything works</label></div>
+      <div class="radio"><input type="radio" name="state" id="s-first" value="first"><label for="s-first">First-time setup</label></div>
+      <div class="radio"><input type="radio" name="state" id="s-broken" value="broken"><label for="s-broken">Something is broken</label></div>
+    </fieldset>
+  </div>
+
+  <main id="main">
+    <div class="summary" id="summary" role="status" aria-live="polite"></div>
+    <div class="row"><button type="button" id="recheck">Check everything again</button></div>
+
+    <section class="card" aria-labelledby="h-env"><h2 id="h-env">Your computer and folders</h2><ul class="checks" id="list-environment"></ul></section>
+
+    <section class="card" aria-labelledby="h-ai">
+      <h2 id="h-ai">AI connections</h2>
+      <form class="editor" id="ai-form" aria-label="Connect an AI provider">
+        <div class="field">
+          <label for="provider">AI provider</label>
+          <select id="provider">
+            <option value="anthropic">Anthropic (Claude)</option>
+            <option value="openai">OpenAI</option>
+            <option value="ollama">Ollama (runs on this computer, no key)</option>
+          </select>
+          <p class="hint">Also supported: Google, xAI, DeepSeek, Qwen, GLM, MiniMax, OpenRouter, Azure and others.</p>
+        </div>
+        <div class="field" id="key-field">
+          <label for="apikey">API key <span id="keyname">(ANTHROPIC_API_KEY)</span></label>
+          <div class="keyrow"><input id="apikey" type="password" autocomplete="off" spellcheck="false" placeholder="Paste your key here"><button type="button" class="secondary" id="showkey" aria-pressed="false">Show</button></div>
+          <p class="hint">Saved only in the .env file on this computer. Never shown again after you save, and sent only to the provider.</p>
+        </div>
+        <div class="field">
+          <label for="quick">Quick model</label>
+          <select id="quick"></select>
+          <p class="hint">Used by the analysts and the debaters: many small jobs.</p>
+        </div>
+        <div class="field">
+          <label for="deep">Deep model</label>
+          <select id="deep"></select>
+          <p class="hint">Used by the managers: a few important decisions.</p>
+        </div>
+        <div class="field">
+          <label for="passes">Research passes per analysis</label>
+          <select id="passes"><option>1</option><option>3</option><option selected>5</option><option>7</option><option>9</option></select>
+          <p class="hint" id="cost" aria-live="polite"></p>
+        </div>
+        <div class="field">
+          <div class="row"><button type="submit" id="savetest">Save and test the connection</button></div>
+          <p class="result" id="aiResult" role="status" aria-live="polite"></p>
+        </div>
+      </form>
+      <ul class="checks" id="list-ai"></ul>
+    </section>
+
+    <section class="card" aria-labelledby="h-data">
+      <h2 id="h-data">Data sources</h2>
+      <p class="sub">Where the analysts get their facts. Yahoo Finance is required. Everything else is optional: each one adds a section to the reports, and a missing one is simply left out.</p>
+      <ul class="checks" id="list-data"></ul>
+    </section>
+
+    <section class="card" aria-labelledby="h-set"><h2 id="h-set">Your settings</h2><ul class="checks" id="list-settings"></ul></section>
+  </main>
+
+  <footer>
+    <p><strong>Not financial advice.</strong> Analyst Council is a research tool. Its ratings are the opinion of AI models working from public data and can be wrong. It never places orders.</p>
+    <p class="sub">Built on <a href="https://github.com/TauricResearch/TradingAgents">TradingAgents</a> by Tauric Research (Apache-2.0).</p>
+  </footer>
+</div>
+
+<script>
+"use strict";
+const LABEL = {ok:"OK", needs_setup:"NEEDS SETUP", not_working:"NOT WORKING", off:"OFF", skipped:"SKIPPED"};
+const SYMBOL = {ok:"✓", needs_setup:"!", not_working:"✕", off:"○", skipped:"–"};
+
+// The healthy picture is the doctor's real output on the author's machine, shortened.
+const HEALTHY = [
+ {id:"env.python", group:"environment", title:"Python and the package", status:"ok", required:true, detail:"Python 3.13 on Windows 11; Analyst Council 1.0.0 (mock version)."},
+ {id:"env.folders", group:"environment", title:"Folders the app writes to", status:"ok", required:true, detail:"The results, cache and memory-log folders can be written (770 GB free)."},
+ {id:"env.dotenv", group:"environment", title:".env settings file", status:"ok", detail:"A .env file was found (its contents are not read or shown here)."},
+ {id:"env.network", group:"environment", title:"Internet and secure connections", status:"ok", required:true, detail:"The internet answers and certificates verify."},
+ {id:"env.certificates", group:"environment", title:"Custom certificate bundle", status:"ok", detail:"A custom certificate bundle is set and the file exists."},
+ {id:"ai.key", group:"ai", title:"Key or sign-in for Anthropic", status:"ok", required:true, detail:"ANTHROPIC_API_KEY is set (the value is not shown)."},
+ {id:"ai.quick.call", group:"ai", title:"Quick model: live test", status:"ok", required:true, detail:"claude-haiku-5-5 answered in 2.1 s using 22 tokens."},
+ {id:"ai.quick.structured", group:"ai", title:"Quick model: structured answers", status:"ok", detail:"The quick model returns structured answers."},
+ {id:"ai.deep.call", group:"ai", title:"Deep model: live test", status:"ok", required:true, detail:"claude-sonnet-5 answered in 2.4 s using 20 tokens."},
+ {id:"ai.deep.structured", group:"ai", title:"Deep model: structured answers", status:"ok", detail:"The deep model returns structured answers."},
+ {id:"data.yahoo", group:"data", title:"Yahoo Finance", adds:"Prices, fundamentals, news, options", needs:"Nothing", status:"ok", required:true, detail:"Answers (5 recent daily prices for SPY).", on:true},
+ {id:"data.sec", group:"data", title:"SEC EDGAR", adds:"Filings and statements as filed, 8-K events", needs:"Your name and email (free)", status:"ok", detail:"Answers; your contact is sent as the SEC asks.", on:true, key:"SEC_EDGAR_USER_AGENT"},
+ {id:"data.fred", group:"data", title:"FRED", adds:"Credit spreads and the macro backdrop", needs:"A free key", status:"ok", detail:"Answers and accepts the key.", on:true, key:"FRED_API_KEY"},
+ {id:"data.finra", group:"data", title:"FINRA", adds:"Short interest and days to cover", needs:"Nothing", status:"ok", detail:"Short-sale data answers.", on:true},
+ {id:"data.polymarket", group:"data", title:"Polymarket", adds:"Market-implied odds for macro events", needs:"Nothing", status:"ok", detail:"Answers.", on:true},
+ {id:"data.quiver", group:"data", title:"Quiver", adds:"Congressional trades and insider filings", needs:"A paid token", status:"ok", detail:"Token accepted. Congressional trades: available. Insider filings: not in your plan, so Yahoo supplies them.", on:true, key:"QUIVER_API_KEY"},
+ {id:"data.alphavantage", group:"data", title:"Alpha Vantage", adds:"Earnings-call transcripts", needs:"A free key", status:"ok", detail:"Answers and accepts the key.", on:true, key:"ALPHA_VANTAGE_API_KEY"},
+ {id:"data.public", group:"data", title:"USAspending, ClinicalTrials.gov, openFDA", adds:"Federal contracts, clinical studies, drug recalls", needs:"Nothing", status:"ok", detail:"All three answer.", on:true},
+ {id:"data.social", group:"data", title:"StockTwits and Reddit", adds:"Social sentiment", needs:"Nothing", status:"ok", detail:"Both answer.", on:true},
+ {id:"data.ibkr", group:"data", title:"Interactive Brokers helper", adds:"IBKR option and volume statistics", needs:"A local helper folder", status:"off", detail:"Not used (Yahoo supplies the market statistics).", on:false},
+ {id:"set.passes", group:"settings", title:"Research passes and cost", status:"ok", detail:"5 passes: each analysis debates 5 times side by side and reports the median and how many agreed."},
+ {id:"set.selloff", group:"settings", title:"Selloff rules", status:"ok", detail:"On: weakness the whole market explains is not held against a stock."},
+ {id:"set.scorecard", group:"settings", title:"Shared scorecard", status:"ok", detail:"On: the bull, the bear and the manager see the same facts."}
+];
+const clone = a => a.map(x => ({...x}));
+const patch = (list, id, p) => { const r = list.find(x => x.id === id); Object.assign(r, p); };
+const STATES = {
+  healthy: () => clone(HEALTHY),
+  first: () => {
+    const l = clone(HEALTHY);
+    patch(l,"env.dotenv",{status:"needs_setup", detail:"No .env file was found in this folder or above it.", fix:"Press “Save and test the connection” above and the app will create it for you."});
+    patch(l,"ai.key",{status:"needs_setup", detail:"ANTHROPIC_API_KEY is not set.", fix:"Paste your key in the box above, then press “Save and test the connection”."});
+    for (const id of ["ai.quick.call","ai.quick.structured","ai.deep.call","ai.deep.structured"]) patch(l,id,{status:"skipped", detail:"Skipped: no key is set yet."});
+    patch(l,"env.certificates",{status:"off", detail:"No custom certificate bundle is set; the system's certificates are used."});
+    patch(l,"data.sec",{status:"needs_setup", detail:"Works with the project's placeholder contact address.", fix:"The SEC asks every client to identify itself: add your name and email."});
+    for (const id of ["data.fred","data.quiver","data.alphavantage"]) patch(l,id,{status:"needs_setup", detail:"No key is set.", fix:"Optional: add a key to switch this source on.", on:false});
+    return l;
+  },
+  broken: () => {
+    const l = clone(HEALTHY);
+    patch(l,"env.network",{status:"not_working", detail:"Could not reach the internet: the secure connection failed its certificate check.", fix:"Some antivirus programs (Norton, for example) re-sign secure web traffic. Save the antivirus's root certificate with the standard bundle in one .pem file and point REQUESTS_CA_BUNDLE, CURL_CA_BUNDLE and SSL_CERT_FILE at it, or pause HTTPS scanning."});
+    patch(l,"ai.quick.call",{status:"not_working", detail:"The quick model (claude-haiku-5-5) did not answer: the provider refused the key; check it in your .env.", fix:"Paste a new key above and press “Save and test the connection”."});
+    patch(l,"ai.deep.call",{status:"not_working", detail:"The deep model (claude-sonnet-5) did not answer: the provider refused the key; check it in your .env.", fix:"Same key as the quick model."});
+    patch(l,"ai.quick.structured",{status:"skipped", detail:"Skipped: the quick model did not answer."});
+    patch(l,"ai.deep.structured",{status:"skipped", detail:"Skipped: the deep model did not answer."});
+    patch(l,"data.yahoo",{status:"not_working", detail:"Yahoo Finance did not answer: ConnectionError.", fix:"Yahoo is the main source of prices and fundamentals. Check the internet and certificates above."});
+    patch(l,"data.fred",{status:"not_working", detail:"FRED refused the key (HTTP 400).", fix:"Check FRED_API_KEY."});
+    patch(l,"set.passes",{status:"needs_setup", detail:"4 passes selected.", fix:"Use an odd number (3 or 5) so the median is well defined."});
+    return l;
+  }
+};
+
+let current = "healthy", items = STATES.healthy();
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const badge = st => `<div class="badge ${st}"><span aria-hidden="true">${SYMBOL[st]}</span><span>${LABEL[st]}</span></div>`;
+
+function renderSummary() {
+  const c = {}; for (const k in LABEL) c[k] = items.filter(i => i.status === k).length;
+  const ready = !items.some(i => i.required && (i.status === "needs_setup" || i.status === "not_working"));
+  document.getElementById("summary").innerHTML =
+    `<p class="big">READY TO RUN: ${ready ? "YES" : "NO"}</p>` +
+    `<p>${ready ? "Everything required works." : "Fix the items marked REQUIRED below first."}</p>` +
+    `<p class="counts">${c.ok} OK, ${c.needs_setup} need setup, ${c.not_working} not working, ${c.off} off, ${c.skipped} skipped.</p>`;
+}
+function renderList(group) {
+  const ul = document.getElementById("list-" + group); if (!ul) return;
+  ul.innerHTML = items.filter(i => i.group === group).map(i => {
+    const problem = i.status === "needs_setup" || i.status === "not_working";
+    const tag = i.required && problem ? '<span class="tag">REQUIRED</span>' : "";
+    return `<li class="check" data-id="${i.id}">${badge(i.status)}<div><h3>${esc(i.title)}${tag}</h3><p class="detail">${esc(i.detail)}</p>` +
+      (problem && i.fix ? `<p class="fix"><strong>To fix:</strong> ${esc(i.fix)}</p>` : "") + `</div>` +
+      `<div class="actions"><button type="button" class="secondary" data-test="${i.id}">Test again</button></div></li>`;
+  }).join("");
+}
+function renderData() {
+  document.getElementById("list-data").innerHTML = items.filter(i => i.group === "data").map(i => {
+    const problem = i.status === "needs_setup" || i.status === "not_working";
+    const tag = i.required ? '<span class="tag">REQUIRED</span>' : "";
+    const sw = i.required ? `<span class="switch"><strong>Always on</strong></span>` :
+      `<label class="switch"><input type="checkbox" data-switch="${i.id}" ${i.on ? "checked" : ""}><span>${i.on ? "On" : "Off"}</span></label>`;
+    const keybtn = i.key && problem ? `<div class="row"><button type="button" class="secondary" data-addkey="${i.id}">Add ${i.key === "SEC_EDGAR_USER_AGENT" ? "your contact" : "key"}</button></div>` : "";
+    return `<li class="check" data-id="${i.id}">${badge(i.status)}<div><h3>${esc(i.title)}${tag}</h3>` +
+      `<p class="meta"><strong>Adds:</strong> ${esc(i.adds)}</p><p class="meta"><strong>Needs:</strong> ${esc(i.needs)}</p>` +
+      `<p class="detail">${esc(i.detail)}</p>` + (problem && i.fix ? `<p class="fix"><strong>To fix:</strong> ${esc(i.fix)}</p>` : "") + keybtn + `</div>` +
+      `<div class="actions col">${sw}<button type="button" class="secondary" data-test="${i.id}">Test again</button></div></li>`;
+  }).join("");
+}
+function renderAll() { renderSummary(); ["environment","ai","settings"].forEach(renderList); renderData(); }
+
+function simulate(id, button) {
+  const old = button.textContent; button.disabled = true; button.textContent = "Testing...";
+  setTimeout(() => { button.disabled = false; button.textContent = old;
+    const row = document.querySelector(`[data-id="${id}"] .detail`); if (row) row.textContent += " (tested again just now; this is a mock)"; }, 1100);
+}
+document.addEventListener("click", e => {
+  const t = e.target.closest("button"); if (!t) return;
+  if (t.dataset.test) simulate(t.dataset.test, t);
+  if (t.dataset.addkey) { document.getElementById("apikey").focus(); document.getElementById("aiResult").textContent = "In the real screen a small box opens here for " + t.dataset.addkey + "."; }
+});
+document.addEventListener("change", e => {
+  if (e.target.dataset.switch) { const i = items.find(x => x.id === e.target.dataset.switch); i.on = e.target.checked; renderData(); }
+  if (e.target.name === "state") { current = e.target.value; items = STATES[current](); renderAll(); }
+});
+document.getElementById("recheck").addEventListener("click", ev => simulate("env.network", ev.target));
+
+// text size and colours (remembered if the browser allows it)
+function pref(name, value) { try { if (value === undefined) return localStorage.getItem(name); localStorage.setItem(name, value); } catch (_) {} return null; }
+function setSize(v) { document.documentElement.dataset.size = v; document.querySelectorAll("#sizes button").forEach(b => b.setAttribute("aria-pressed", b.dataset.size === v)); pref("ac-size", v); }
+function setTheme(v) { document.documentElement.dataset.theme = v; document.querySelectorAll("#themes button").forEach(b => b.setAttribute("aria-pressed", b.dataset.theme === v)); pref("ac-theme", v); }
+document.getElementById("sizes").addEventListener("click", e => { if (e.target.dataset.size) setSize(e.target.dataset.size); });
+document.getElementById("themes").addEventListener("click", e => { if (e.target.dataset.theme) setTheme(e.target.dataset.theme); });
+
+// the AI connection form
+const MODELS = {anthropic:{quick:["claude-haiku-5-5","claude-sonnet-5"], deep:["claude-sonnet-5","claude-opus-5-5"], key:"ANTHROPIC_API_KEY"},
+                openai:{quick:["gpt-6-luna"], deep:["gpt-6-sol"], key:"OPENAI_API_KEY"}, ollama:{quick:["llama3"], deep:["llama3"], key:null}};
+function fillModels() {
+  const m = MODELS[document.getElementById("provider").value];
+  for (const tier of ["quick","deep"]) document.getElementById(tier).innerHTML = m[tier].map(x => `<option>${x}</option>`).join("");
+  document.getElementById("key-field").hidden = !m.key; document.getElementById("keyname").textContent = m.key ? `(${m.key})` : "";
+}
+document.getElementById("provider").addEventListener("change", fillModels);
+document.getElementById("showkey").addEventListener("click", e => { const f = document.getElementById("apikey"); const show = f.type === "password";
+  f.type = show ? "text" : "password"; e.target.textContent = show ? "Hide" : "Show"; e.target.setAttribute("aria-pressed", show); });
+function cost() { const n = +document.getElementById("passes").value; const usd = (0.13 + 0.0675 * (n - 1)).toFixed(2); const min = (4.5 + 0.45 * (n - 1)).toFixed(0);
+  document.getElementById("cost").textContent = `About $${usd} and ${min} minutes per analysis (measured with Anthropic Haiku and Sonnet; other providers differ). ` + (n === 1 ? "One pass can flip between neighbouring ratings on a borderline stock." : "The report shows the median and how many passes agreed."); }
+document.getElementById("passes").addEventListener("change", cost);
+document.getElementById("ai-form").addEventListener("submit", e => { e.preventDefault();
+  const out = document.getElementById("aiResult"), b = document.getElementById("savetest"); b.disabled = true; out.textContent = "Saving to .env and testing...";
+  setTimeout(() => { b.disabled = false; out.textContent = "Mock result: quick model answered in 2.1 s, deep model in 2.4 s, structured answers work. Key saved (not shown again)."; }, 1500); });
+
+setSize(pref("ac-size") || "normal"); setTheme(pref("ac-theme") || "light"); fillModels(); cost(); renderAll();
+</script>
+</body>
+</html>
