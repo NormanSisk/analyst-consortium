@@ -24,12 +24,13 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
 
 import tradingagents
+from tradingagents.ui import exports
 from tradingagents.ui import runs as run_tools
 from tradingagents.ui import settings_store as store
 
@@ -65,6 +66,12 @@ class RunRequest(BaseModel):
     holdings: str | None = Field(default=None, max_length=200)
     selloff: bool = True
     scorecard: bool = True
+    open_report: bool = True
+
+
+class ExportRequest(BaseModel):
+    format: str = Field(max_length=8)
+    ids: list[str] = Field(default_factory=list, max_length=run_tools.MAX_WAITING * 4)
 
 
 def _host_ok(host: str, port: int | None) -> bool:
@@ -135,6 +142,7 @@ def build_run_options(manager: run_tools.RunManager | None = None) -> dict:
                       "profile": b["profile"], "folder": b["folder"]} for name, b in books.items()],
         "holdings_folders": [str(f) for f in holdings_folders(cfg)],
         "defaults": {"depth": depth if depth in run_tools.DEPTH_VALUES else 1, "passes": passes, "language": language,
+                     "open_report": True,
                      "selloff": env.get("TRADINGAGENTS_NO_SELLOFF_RULES") != "1",
                      "scorecard": env.get("TRADINGAGENTS_NO_SCORECARD") != "1"},
         "provider": {"id": provider, "quick": quick, "deep": deep, "key_env": key_env,
@@ -250,6 +258,50 @@ def create_app(token: str, dotenv_path: Path | None = None, port: int | None = N
         if not run_tools.JOB_ID.fullmatch(job_id) or not await run_in_threadpool(manager().cancel, job_id):
             return JSONResponse({"detail": "That analysis is not waiting or running."}, status_code=404)
         return {"stopped": job_id}
+
+    @app.get("/api/runs/{job_id}/live")
+    async def live_view(job_id: str, after: int = 0, have: str = ""):
+        """New events since byte offset ``after``, each team member's state, and reports (text only when changed)."""
+        held = {}
+        for item in have.split(",")[:30]:
+            key, _, rev = item.partition(":")
+            if re.fullmatch(r"[a-z]{2,12}", key) and re.fullmatch(r"[0-9a-f]{1,8}-\d{1,9}", rev):
+                held[key] = rev
+        if not run_tools.JOB_ID.fullmatch(job_id) or after < 0:
+            return JSONResponse({"detail": "That analysis is not known."}, status_code=404)
+        data = await run_in_threadpool(manager().live, job_id, after, held)
+        if data is None:
+            return JSONResponse({"detail": "That analysis is not known."}, status_code=404)
+        return data
+
+    @app.post("/api/runs/{job_id}/open-report")
+    async def open_report(job_id: str):
+        if not run_tools.JOB_ID.fullmatch(job_id) or await run_in_threadpool(manager().report_file, job_id) is None:
+            return JSONResponse({"detail": "That analysis has no saved report to open."}, status_code=404)
+        opened = await run_in_threadpool(manager().show_report, job_id)
+        return {"opened": bool(opened)}
+
+    @app.post("/api/export")
+    async def export_file(body: ExportRequest):
+        """A finished analysis as a CSV (one row each, for any number) or a PDF (one analysis). The page saves the bytes."""
+        if body.format not in ("csv", "pdf") or not all(run_tools.JOB_ID.fullmatch(i) for i in body.ids):
+            return JSONResponse({"detail": "Choose CSV or PDF and finished analyses from the list."}, status_code=422)
+        jobs = await run_in_threadpool(manager().finished, body.ids or None)
+        if not jobs:
+            return JSONResponse({"detail": "There is no finished analysis to save yet."}, status_code=422)
+        if body.format == "csv":
+            return Response(exports.build_csv(jobs), media_type="text/csv; charset=utf-8",
+                            headers={"Content-Disposition": 'attachment; filename="analyses.csv"'})
+        if len(jobs) != 1:
+            return JSONResponse({"detail": "A PDF is made for one analysis at a time."}, status_code=422)
+        page = await run_in_threadpool(manager().report_file, jobs[0].id)
+        if page is None:
+            return JSONResponse({"detail": "This analysis has no saved HTML report to turn into a PDF."}, status_code=422)
+        try:
+            data = await run_in_threadpool(exports.html_to_pdf, page)
+        except exports.ExportError as exc:
+            return JSONResponse({"detail": str(exc)}, status_code=422)
+        return Response(data, media_type="application/pdf", headers={"Content-Disposition": 'attachment; filename="report.pdf"'})
 
     app.mount("/static", StaticFiles(directory=str(STATIC)), name="static")
     return app

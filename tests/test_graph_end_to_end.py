@@ -250,6 +250,22 @@ def test_each_report_streams_as_soon_as_its_analyst_files_it(tmp_path, monkeypat
 
 
 @pytest.mark.unit
+def test_each_streamed_step_is_attributed_to_its_agent(tmp_path, monkeypatch, offline):
+    """The live view needs to know which analyst a message came from; the stream says so through ``source_hook``."""
+    graph = _graph(tmp_path, monkeypatch, ScriptedModel())
+    sources, pairs = [], []
+
+    for messages, state in graph.stream_run(graph.create_run_state("NVDA", TRADE_DATE), source_hook=sources.append,
+                                            **graph.propagator.get_graph_args()):
+        pairs.append((messages, state))
+
+    assert {"Market Analyst", "Sentiment Analyst", "News Analyst", "Fundamentals Analyst"} <= set(sources)
+    assert None in sources                              # the run's own steps belong to no single agent
+    assert len(sources) == len(pairs)                   # one call per pair, just before it is yielded
+    assert all(s is None or ":" not in s for s in sources)
+
+
+@pytest.mark.unit
 def test_a_streamed_run_reads_its_own_graph_config(tmp_path, monkeypatch, offline):
     """The CLI streams the run; a process-wide config set elsewhere must not reach
     its tools, and the graph's config must not reach the caller between steps."""

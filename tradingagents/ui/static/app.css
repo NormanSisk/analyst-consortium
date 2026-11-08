@@ -143,6 +143,23 @@ li.st-waiting { color:var(--muted); }
 .summary-text { white-space:pre-wrap; }
 .problem { font-weight:400; }
 pre { white-space:pre-wrap; overflow-wrap:anywhere; border:1px solid var(--line); padding:.6rem; background:var(--bg); border-radius:.4rem; font-size:.85rem; }
+/* The live view: one collapsible block per agent, with what it said and asked for, and its report once filed */
+.live-slot { margin-top:.8rem; }
+details.live { border-top:var(--border-w) solid var(--line); padding-top:.7rem; }
+details.live > summary, details.repd > summary { margin:0 0 .5rem; }
+details.live h4 { font-size:1.05rem; margin:1rem 0 .3rem; }
+ul.agents { list-style:none; margin:0; padding:0; display:grid; gap:.5rem; }
+li.agent { border:1px solid var(--line); border-radius:.5rem; padding:.5rem .7rem; background:var(--bg); min-width:0; }
+li.agent > details > summary { display:flex; flex-wrap:wrap; align-items:center; gap:.3rem .7rem; cursor:pointer; }
+.badge.small { min-width:0; padding:.1rem .55rem; font-size:.9rem; border-width:2px; }
+ol.feed { list-style:none; margin:.6rem 0 .3rem; padding:.3rem .5rem; max-height:16rem; overflow:auto; border:1px solid var(--line); border-radius:.4rem; background:var(--panel); }
+li.ev { padding:.35rem 0; border-top:1px solid var(--line); font-size:.95rem; white-space:pre-wrap; }
+li.ev:first-child { border-top:0; }
+.ev-tag { display:inline-block; font-size:.75rem; font-weight:800; letter-spacing:.04em; border:1px solid var(--line); border-radius:.3rem; padding:0 .35rem; }
+.ev-time { color:var(--muted); font-size:.85rem; }
+li.ev-request .ev-text { font-family:ui-monospace,Consolas,monospace; font-size:.9rem; }
+li.ev-data .ev-text { color:var(--muted); }
+.reptext { white-space:pre-wrap; max-height:28rem; overflow:auto; border:1px solid var(--line); border-radius:.4rem; padding:.6rem .8rem; background:var(--panel); font-size:.95rem; }
 @media (max-width: 52rem) { li.stage { grid-template-columns:minmax(0,1fr); gap:0; } }
 html[data-size="xlarge"] li.stage { grid-template-columns:minmax(0,1fr); gap:0; }
 @media (prefers-reduced-motion: reduce) { * { transition:none !important; animation:none !important; } }

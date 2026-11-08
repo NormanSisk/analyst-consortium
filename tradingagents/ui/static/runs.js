@@ -37,7 +37,7 @@ function fillRunForm() {
     if (h.profile) bits.push("with your profile text");
     return `<option value="${esc(h.id)}">${esc(h.id)} (${esc(bits.join(", "))})</option>`;
   }).join("");
-  $("r-selloff").checked = d.selloff; $("r-scorecard").checked = d.scorecard;
+  $("r-selloff").checked = d.selloff; $("r-scorecard").checked = d.scorecard; $("r-open").checked = d.open_report !== false;
   updateParsed(); updateDateNote(); updateDepthHint(); updateHoldingsHint(); updateLanguage(); updateEstimate();
 }
 
@@ -105,7 +105,7 @@ async function submitRun(e) {
   try {
     const r = await api("/api/runs", {tickers: uniqueTickers(), date: $("r-date").value, analysts, depth: +$("r-depth").value,
       passes: +$("r-passes").value, language, holdings: $("r-holdings").value || null,
-      selloff: $("r-selloff").checked, scorecard: $("r-scorecard").checked});
+      selloff: $("r-selloff").checked, scorecard: $("r-scorecard").checked, open_report: $("r-open").checked});
     res.textContent = r.started.length === 1 ? "Started. It is listed under Your analyses." : r.started.length + " analyses queued. They run one after another and are listed under Your analyses.";
     await refreshRuns();
     const h = $("jobs-h"); h.tabIndex = -1; h.focus();
@@ -157,6 +157,11 @@ function resultHtml(j) {
   if (r.fallbacks) meta.push(plural(r.fallbacks, "answer was", "answers were") + " read from plain text");
   if (meta.length) parts.push(`<p class="hint">${esc(meta.join(" · "))}</p>`);
   if (r.report_dir) parts.push(`<p class="hint">The full report is saved in <code>${esc(r.report_dir)}</code> (open complete_report.html there).</p>`);
+  const name = esc(j.ticker + "_" + j.date), id = esc(j.id);
+  parts.push(`<div class="row">` +
+    (r.report_dir ? `<button type="button" data-open-report="${id}">Open the HTML report</button>` : "") +
+    `<button type="button" class="secondary" data-save="csv" data-id="${id}" data-name="${name}">Save as CSV</button>` +
+    (r.report_dir ? `<button type="button" class="secondary" data-save="pdf" data-id="${id}" data-name="${name}">Save as PDF</button>` : "") + `</div>`);
   return `<div class="result-card">${parts.join("")}</div>`;
 }
 
@@ -185,8 +190,9 @@ function jobItem(j) {
     if (j.log) body += `<p class="hint">The whole log is in <code>${esc(j.log)}</code>.</p>`;
   }
   const notes = (j.notes || []).map(n => `<p class="hint">${esc(n)}</p>`).join("");
+  const slot = j.status === "waiting" ? "" : `<div class="live-slot" data-slot="${esc(j.id)}"></div>`;     // the live view lives here
   return `<li class="job job-${j.status}" data-job="${esc(j.id)}" data-sig="${esc(sig(j))}"><div class="job-head"><h3>${esc(j.ticker)} <span class="muted">for ${esc(j.date)}</span></h3>` +
-    `<div class="badge job-${j.status}"><span aria-hidden="true">${st[0]}</span><span>${st[1]}</span></div></div><p class="hint">${esc(meta)}</p>${notes}${body}</li>`;
+    `<div class="badge job-${j.status}"><span aria-hidden="true">${st[0]}</span><span>${st[1]}</span></div></div><p class="hint">${esc(meta)}</p>${notes}${body}${slot}</li>`;
 }
 
 function syncList(ul, items) {
@@ -194,7 +200,13 @@ function syncList(ul, items) {
   if (ul.dataset.ids !== ids) { ul.innerHTML = items.map(jobItem).join(""); ul.dataset.ids = ids; return; }
   items.forEach(j => {
     const li = ul.querySelector('[data-job="' + j.id + '"]'); if (!li) return;
-    if (li.dataset.sig !== sig(j)) { li.outerHTML = jobItem(j); return; }
+    if (li.dataset.sig !== sig(j)) {
+      const slot = li.querySelector(".live-slot");                 // keep the live view's own page state through a redraw
+      li.outerHTML = jobItem(j);
+      const fresh = ul.querySelector('[data-job="' + j.id + '"]'), made = fresh && fresh.querySelector(".live-slot");
+      if (slot && made) made.replaceWith(slot);
+      return;
+    }
     const e = li.querySelector("[data-elapsed]"); if (e) e.textContent = elapsedText(j);
     const l = li.querySelector("[data-latest]"); if (l) l.textContent = latestText(j);
   });
@@ -203,10 +215,190 @@ function syncList(ul, items) {
 function renderRuns() {
   const first = jobs.slice(0, SHOWN), rest = jobs.slice(SHOWN);
   $("runs-empty").hidden = jobs.length > 0;
+  $("jobs-tools").hidden = !jobs.some(j => j.status === "done");
   syncList($("runs"), first);
   $("runs-old").hidden = rest.length === 0;
   $("runs-old-label").textContent = "Earlier analyses (" + rest.length + ")";
   syncList($("runs-older"), rest);
+  jobs.forEach(ensureLive);
+}
+
+// ---------------------------------------------------------------- the live view
+// What each agent says and asks for, as it happens, and each agent's report once filed. Fed by /api/runs/{id}/live.
+const liveState = {};
+const STATE_MARK = {waiting: ["○", "WAITING", "job-waiting"], working: ["▶", "WORKING", "job-running"], done: ["✓", "DONE", "job-done"], missing: ["–", "NO REPORT", "job-stopped"]};
+const EVENT_TAG = {thought: "THOUGHT", request: "REQUESTED", data: "RECEIVED", system: "NOTE"};
+const isOpen = (key, fallback) => (key in keepOpen ? keepOpen[key] : fallback);
+const slotOf = id => document.querySelector('.live-slot[data-slot="' + id + '"]');
+
+function eventHtml(e) {
+  let text = e.text || "";
+  if (e.kind === "data") text = (e.size ? Number(e.size).toLocaleString() + " characters. " : "") + text.replace(/\s+/g, " ").slice(0, 240) + (text.length > 240 ? "..." : "");
+  return `<li class="ev ev-${esc(e.kind)}"><span class="ev-tag">${EVENT_TAG[e.kind] || "NOTE"}</span> <span class="ev-time">${esc(e.t || "")}</span> <span class="ev-text">${esc(text)}</span></li>`;
+}
+
+function agentIdFor(st, source) {
+  const s = String(source || "").toLowerCase(), a = st.agents.find(x => x.title.toLowerCase() === s);
+  return a ? a.id : "team";
+}
+
+function repHtml(jobId, a, sec) {
+  const key = "report:" + jobId + ":" + a.id;
+  return `<details class="repd" data-keep="${esc(key)}"${isOpen(key, false) ? " open" : ""}><summary><span class="btn-like secondary">${a.group === "analysts" ? "Final report" : "What it said"} (${Number((sec.text || "").length).toLocaleString()} characters)</span></summary>` +
+    `<div class="reptext" tabindex="0" role="region" aria-label="${esc(a.title)}: the text">${esc(sec.text || "")}</div></details>`;
+}
+
+function agentHtml(j, a, st) {
+  const m = STATE_MARK[a.state] || STATE_MARK.waiting, key = "agent:" + j.id + ":" + a.id, sec = st.sections[a.id];
+  const evs = st.events.filter(e => agentIdFor(st, e.source) === a.id);
+  return `<li class="agent" data-agent="${esc(a.id)}"><details data-keep="${esc(key)}"${isOpen(key, a.state === "working") ? " open" : ""}>` +
+    `<summary><span class="badge small ${m[2]}" data-astate data-state="${a.state}"><span aria-hidden="true">${m[0]}</span> ${m[1]}</span> <strong>${esc(a.title)}</strong> ` +
+    `<span class="muted" data-acount>${evs.length ? "(" + plural(evs.length, "event", "events") + ")" : ""}</span></summary>` +
+    `<ol class="feed" tabindex="0" role="region" aria-label="${esc(a.title)}: what it said and asked for" data-feed="${esc(a.id)}"${evs.length ? "" : " hidden"}>${evs.map(eventHtml).join("")}</ol>` +
+    `<div data-repslot="${esc(a.id)}" data-rev="${sec ? esc(sec.rev) : ""}">${sec ? repHtml(j.id, a, sec) : ""}</div></details></li>`;
+}
+
+function placeholderHtml(j, open, message) {
+  return `<details class="live" data-keep="viewer:${esc(j.id)}"${open ? " open" : ""}><summary><span class="btn-like secondary">${j.status === "running" ? "Watch the analysts live" : "See what the analysts said"}</span></summary>` +
+    `<p class="hint">${esc(message || "Loading the live view...")}</p></details>`;
+}
+
+function drawLive(j, slot) {
+  const st = liveState[j.id];
+  const hadFocus = slot.contains(document.activeElement);
+  if (!st || !st.agents.length) { slot.innerHTML = placeholderHtml(j, isOpen("viewer:" + j.id, j.status === "running"), "Nothing was recorded for this analysis."); return; }
+  const groups = [];
+  st.agents.forEach(a => {
+    let g = groups.find(x => x.id === a.group);
+    if (!g) { g = {id: a.group, title: a.group_title, items: []}; groups.push(g); }
+    g.items.push(a);
+  });
+  const team = st.events.filter(e => agentIdFor(st, e.source) === "team");
+  const key = "viewer:" + j.id, teamKey = "agent:" + j.id + ":team";
+  slot.innerHTML = `<details class="live" data-keep="${esc(key)}" data-full="1"${isOpen(key, j.status === "running") ? " open" : ""}>` +
+    `<summary><span class="btn-like secondary">${j.status === "running" ? "Watch the analysts live" : "See what the analysts said"}</span></summary>` +
+    `<p class="hint">Each agent's own words and the data it asks for, as they happen. The AI models' private reasoning is not available from the providers, so it is not shown.` +
+    (st.passes > 1 ? ` The research panel runs ${st.passes} debates side by side; once it finishes, the first debate is shown here and the vote is in the result.` : "") + `</p>` +
+    groups.map(g => `<h4>${esc(g.title)}</h4><ul class="agents">${g.items.map(a => agentHtml(j, a, st)).join("")}</ul>`).join("") +
+    `<ul class="agents"><li class="agent" data-agent="team"><details data-keep="${esc(teamKey)}"${isOpen(teamKey, false) ? " open" : ""}><summary><strong>Notes from the run</strong> <span class="muted" data-acount>${team.length ? "(" + plural(team.length, "event", "events") + ")" : ""}</span></summary>` +
+    `<ol class="feed" tabindex="0" role="region" aria-label="Notes from the run" data-feed="team"${team.length ? "" : " hidden"}>${team.map(eventHtml).join("")}</ol></details></li></ul></details>`;
+  st.rendered = st.events.length;
+  slot.querySelectorAll("ol.feed").forEach(ol => { ol.scrollTop = ol.scrollHeight; });       // start at the newest line
+  if (hadFocus) { const s = slot.querySelector("summary"); if (s) s.focus(); }
+}
+
+function updateLive(id) {
+  const slot = slotOf(id), st = liveState[id], j = jobs.find(x => x.id === id);
+  if (!slot || !st || !j) return;
+  if (!slot.querySelector("[data-full]")) { drawLive(j, slot); return; }
+  const fresh = st.events.slice(st.rendered);
+  st.rendered = st.events.length;
+  fresh.forEach(e => {
+    const ol = slot.querySelector('[data-feed="' + agentIdFor(st, e.source) + '"]'); if (!ol) return;
+    const stick = ol.scrollTop + ol.clientHeight >= ol.scrollHeight - 10;      // keep following only if the reader is at the end
+    ol.hidden = false; ol.insertAdjacentHTML("beforeend", eventHtml(e));
+    if (stick) ol.scrollTop = ol.scrollHeight;
+  });
+  st.agents.concat([{id: "team", title: "team"}]).forEach(a => {
+    const li = slot.querySelector('[data-agent="' + a.id + '"]'); if (!li) return;
+    const n = st.events.filter(e => agentIdFor(st, e.source) === a.id).length, c = li.querySelector("[data-acount]");
+    if (c) c.textContent = n ? "(" + plural(n, "event", "events") + ")" : "";
+    const b = li.querySelector("[data-astate]");
+    if (b && b.dataset.state !== a.state) { const m = STATE_MARK[a.state] || STATE_MARK.waiting; b.className = "badge small " + m[2]; b.dataset.state = a.state; b.innerHTML = `<span aria-hidden="true">${m[0]}</span> ${m[1]}`; }
+    const sec = st.sections[a.id], rs = li.querySelector("[data-repslot]");
+    if (sec && rs && rs.dataset.rev !== sec.rev) { rs.dataset.rev = sec.rev; rs.innerHTML = repHtml(id, a, sec); }
+  });
+}
+
+async function fetchLive(id) {
+  const st = liveState[id] || (liveState[id] = {next: 0, events: [], sections: {}, agents: [], passes: 1, rendered: 0, busy: false, final: false});
+  if (st.busy) return;
+  st.busy = true;
+  try {
+    const have = Object.keys(st.sections).map(k => k + ":" + st.sections[k].rev).join(",");
+    const d = await api("/api/runs/" + encodeURIComponent(id) + "/live?after=" + st.next + "&have=" + encodeURIComponent(have));
+    if (d.next) st.next = d.next;
+    st.agents = d.agents; st.passes = d.passes;
+    d.events.forEach(e => st.events.push(e));
+    d.sections.forEach(s => { st.sections[s.id] = {rev: s.rev, text: s.text !== null ? s.text : (st.sections[s.id] || {}).text}; });
+  } finally { st.busy = false; }
+}
+
+async function loadLive(id) {
+  try { await fetchLive(id); }
+  catch (x) { const s = slotOf(id); if (s) s.innerHTML = `<p class="problem">Could not load the live view: ${esc(x.message)}</p>`; return; }
+  updateLive(id);
+}
+
+function ensureLive(j) {
+  if (j.status === "waiting") return;
+  const slot = slotOf(j.id); if (!slot || slot.firstElementChild) return;
+  const st = liveState[j.id], open = isOpen("viewer:" + j.id, j.status === "running");
+  if (st && st.agents.length) { drawLive(j, slot); return; }
+  slot.innerHTML = placeholderHtml(j, open);
+  if (open) loadLive(j.id);
+}
+
+async function liveTick() {
+  const work = jobs.filter(j => j.status !== "waiting" && liveState[j.id] &&
+    (j.status === "running" ? isOpen("viewer:" + j.id, true) : !liveState[j.id].final));
+  await Promise.all(work.map(async j => {
+    try { await fetchLive(j.id); } catch (_) { return; }
+    updateLive(j.id);
+    if (j.status !== "running") liveState[j.id].final = true;          // one last look after it ends, then stop asking
+  }));
+}
+
+// ---------------------------------------------------------------- the report and saving files
+function download(blob, name) {
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob); a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+}
+
+async function openReport(id) {
+  const out = $("export-result"), err = $("export-error");
+  err.textContent = ""; out.textContent = "";
+  try {
+    const r = await api("/api/runs/" + encodeURIComponent(id) + "/open-report", {});
+    out.textContent = r.opened ? "The report is opening in your browser." : "The report could not be opened from here. Open complete_report.html in the folder shown on the result.";
+  } catch (x) { err.textContent = "Could not open it: " + x.message; }
+  out.scrollIntoView({block: "nearest"});
+}
+
+// Choosing where to save: browsers that can (Chrome, Edge) show a Save As window right away, then the file is made and
+// written there. The window must open first, straight from the click, because making a PDF can take longer than a
+// browser allows between a click and that window. Other browsers get an ordinary download.
+async function saveFile(kind, ids, baseName) {
+  const out = $("export-result"), err = $("export-error");
+  err.textContent = ""; out.textContent = "";
+  const ext = kind === "pdf" ? ".pdf" : ".csv", mime = kind === "pdf" ? "application/pdf" : "text/csv", suggested = baseName.replace(/\.(csv|pdf)$/, "") + ext;
+  let handle = null;
+  if (typeof window.showSaveFilePicker === "function") {
+    try {
+      handle = await window.showSaveFilePicker({suggestedName: suggested, types: [{description: kind === "pdf" ? "PDF document" : "CSV spreadsheet", accept: {[mime]: [ext]}}]});
+    } catch (e) {
+      if (e && e.name === "AbortError") { out.textContent = "Nothing was saved: you closed the Save As window."; return; }
+      handle = null;                                                  // the window could not open: use a normal download
+    }
+  }
+  out.textContent = kind === "pdf" ? "Making the PDF. This takes a few seconds..." : "Preparing the file...";
+  try {
+    const blob = await apiBlob("/api/export", {format: kind, ids});
+    if (handle) {
+      const w = await handle.createWritable(); await w.write(blob); await w.close();
+      out.textContent = "Saved as " + handle.name + " in the folder you chose.";
+    } else {
+      download(blob, suggested);
+      out.textContent = "Downloaded " + suggested + ". Your browser decides the folder; to choose it each time, turn on \"Ask where to save each file\" in its download settings.";
+    }
+  } catch (x) {
+    out.textContent = "";
+    err.textContent = "Not saved: " + x.message;
+    if (handle && typeof handle.remove === "function") { try { await handle.remove(); } catch (_) { /* leave the empty file */ } }
+  }
+  out.scrollIntoView({block: "nearest"});
 }
 
 function announce() {
@@ -230,6 +422,7 @@ async function refreshRuns() {
   try {
     jobs = (await api("/api/runs")).runs;
     announce(); renderRuns();
+    await liveTick();
     again = jobs.some(j => ACTIVE.indexOf(j.status) >= 0);
   } catch (_) {
     again = jobs.some(j => ACTIVE.indexOf(j.status) >= 0);        // a missed poll is not the end of a running analysis
@@ -248,11 +441,19 @@ async function stopJob(btn) {
 
 // ---------------------------------------------------------------- events
 document.addEventListener("ac-checks", e => { setupReady = e.detail.ready; setupError = !!e.detail.error; updateGate(); });
-document.addEventListener("toggle", e => { const k = e.target.dataset && e.target.dataset.keep; if (k) keepOpen[k] = e.target.open; }, true);
+document.addEventListener("toggle", e => {
+  const k = e.target.dataset && e.target.dataset.keep;
+  if (!k) return;
+  keepOpen[k] = e.target.open;
+  if (k.indexOf("viewer:") === 0 && e.target.open && !e.target.dataset.full) loadLive(k.slice(7));      // opened a finished analysis's view
+}, true);
 document.addEventListener("click", e => {
   const t = e.target.closest("button"); if (!t) return;
   if (t.id === "go-config") { $("configure").open = true; $("configure").scrollIntoView({block: "start"}); $("configure").querySelector("summary").focus(); }
   if (t.dataset.stop) stopJob(t);
+  if (t.dataset.openReport) openReport(t.dataset.openReport);
+  if (t.dataset.save) saveFile(t.dataset.save, [t.dataset.id], t.dataset.name);
+  if (t.id === "save-all-csv") saveFile("csv", jobs.filter(j => j.status === "done").map(j => j.id), "analyses_" + (runOpts ? runOpts.today : "all"));
 });
 $("run-form").addEventListener("submit", submitRun);
 $("r-tickers").addEventListener("input", () => { updateParsed(); updateEstimate(); });

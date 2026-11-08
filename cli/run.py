@@ -33,6 +33,8 @@ from tradingagents.graph.analyst_execution import (
     build_analyst_execution_plan,
 )
 from tradingagents.graph.trading_graph import TradingAgentsGraph
+from tradingagents.live_events import FILE_NAME as EVENTS_FILE
+from tradingagents.live_events import EventLog
 
 
 def _run_directory(config: dict, ticker: str, trade_date: str) -> Path:
@@ -140,6 +142,9 @@ def run_analysis(checkpoint: bool | None = None, portfolio=None, flags=None):
     report_dir.mkdir(parents=True, exist_ok=True)
     log_file = results_dir / "message_tool.log"
     log_file.touch(exist_ok=True)
+    # The page's live view reads this: who said or asked for what, as it happens (see live_events.py).
+    events = EventLog(results_dir / EVENTS_FILE)
+    source = [None]          # the agent the step being handled belongs to, set by the stream
 
     def save_message_decorator(obj, func_name):
         func = getattr(obj, func_name)
@@ -240,7 +245,8 @@ def run_analysis(checkpoint: bool | None = None, portfolio=None, flags=None):
         # try/finally tears the checkpointer down even if the stream raises.
         trace = []
         try:
-            for messages, chunk in graph.stream_run(graph.checkpoint_input(init_agent_state), **args):
+            for messages, chunk in graph.stream_run(graph.checkpoint_input(init_agent_state),
+                                                    source_hook=lambda name: source.__setitem__(0, name), **args):
                 for message in messages:
                     msg_id = getattr(message, "id", None)
                     if msg_id is not None:
@@ -251,13 +257,16 @@ def run_analysis(checkpoint: bool | None = None, portfolio=None, flags=None):
                     msg_type, content = classify_message_type(message)
                     if content and content.strip():
                         message_buffer.add_message(msg_type, content)
+                        events.record(source[0], msg_type, content)
 
                     if hasattr(message, "tool_calls") and message.tool_calls:
                         for tool_call in message.tool_calls:
                             if isinstance(tool_call, dict):
-                                message_buffer.add_tool_call(tool_call["name"], tool_call["args"])
+                                name, call_args = tool_call["name"], tool_call["args"]
                             else:
-                                message_buffer.add_tool_call(tool_call.name, tool_call.args)
+                                name, call_args = tool_call.name, tool_call.args
+                            message_buffer.add_tool_call(name, call_args)
+                            events.record(source[0], "Tool Call", f"{name}({', '.join(f'{k}={v}' for k, v in call_args.items())})")
 
                 if chunk is None:   # a step inside an analyst's graph: messages only
                     update_display(layout, stats_handler=stats_handler, start_time=start_time)

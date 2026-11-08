@@ -15,6 +15,7 @@ from tradingagents.dataflows.config import run_config, run_config_context, set_c
 from tradingagents.dataflows.date_window import get_current_date, is_historical
 from tradingagents.dataflows.symbols import safe_ticker_component
 from tradingagents.default_config import DEFAULT_CONFIG
+from tradingagents.live_events import source_name
 from tradingagents.llm_clients import create_tier_client, tier_provider
 from tradingagents.memory import TradingMemoryLog, settlement
 from tradingagents.memory.reflection import Reflector
@@ -408,7 +409,7 @@ class TradingAgentsGraph:
 
         return final_state, run_rating(final_state)
 
-    def stream_run(self, graph_input, **args):
+    def stream_run(self, graph_input, *, source_hook=None, **args):
         """Stream a run as ``(messages, state)`` pairs.
 
         ``messages`` are the agents' messages, the analysts' included. ``state``
@@ -418,6 +419,10 @@ class TradingAgentsGraph:
         Each analyst works in a graph of its own, and the run's state takes the
         analysts' reports only when the slowest has finished, so their messages
         and reports come from their own finished steps ("tasks") as they happen.
+
+        ``source_hook``, when given, is called just before each pair is yielded
+        with the name of the agent the step belongs to (``"Market Analyst"``), or
+        None for a step of the run as a whole. The pairs themselves are unchanged.
         """
         args = {**args, "stream_mode": ["values", "tasks"]}
         # The graph's own config serves every tool call, as in propagate(), even
@@ -433,8 +438,12 @@ class TradingAgentsGraph:
                     if isinstance(result, dict):
                         report = {k: v for k, v in result.items() if k != "messages" and v}
                         if result.get("messages") or report:
+                            if source_hook is not None:
+                                source_hook(source_name(namespace))
                             yield result.get("messages", []), report or None
                 elif mode == "values":
+                    if source_hook is not None:
+                        source_hook(None)
                     yield chunk.get("messages", []), chunk
         finally:
             context.run(stream.close)

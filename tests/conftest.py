@@ -76,6 +76,19 @@ def _no_network(request, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _no_browser_windows(monkeypatch):
+    """A test never opens a window on the machine running it; one that checks the opening replaces this itself."""
+    import webbrowser
+
+    def refuse(url, *args, **kwargs):
+        raise AssertionError(f"test tried to open a browser window: {url}")
+
+    monkeypatch.setattr(webbrowser, "open", refuse)
+    monkeypatch.setattr(webbrowser, "open_new", refuse)
+    monkeypatch.setattr(webbrowser, "open_new_tab", refuse)
+
+
+@pytest.fixture(autouse=True)
 def _at_a_terminal(monkeypatch):
     """Tests of the interactive steps run as if at a terminal; pytest's stdin is
     not one. A test of an unattended run sets isatty to False itself."""

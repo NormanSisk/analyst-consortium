@@ -1,5 +1,6 @@
 """The local setup screen: the settings writer, the server's guards, and that no secret ever leaves it."""
 
+import io
 import json
 import os
 import re
@@ -411,7 +412,7 @@ class TestRunsApi:
 
         c = client(dotenv, runs=rig[0])
         js = c.get("/static/runs.js")
-        assert js.status_code == 200 and "/api/runs" in js.text and "X-Council-Token" not in js.text   # it reuses api() from app.js
+        assert js.status_code == 200 and "/api/runs" in js.text and "X-Council-Token" not in js.text   # the token stays in app.js
         html = (Path(server.STATIC) / "index.html").read_text(encoding="utf-8")
         assert '<script src="/static/runs.js">' in html and 'id="run-form"' in html and 'id="start"' in html
         assert " style=" not in html and not re.search(r"\son[a-z]+=", html)
@@ -426,6 +427,197 @@ class TestRunsApi:
         with TestClient(c.app, base_url="http://127.0.0.1:8765"):
             pass
         assert made == [1, "closed"]
+
+
+@pytest.mark.unit
+class TestLiveAndFilesApi:
+    """The live view, opening a report, and the CSV and PDF downloads."""
+
+    @pytest.fixture
+    def setup(self, tmp_path, monkeypatch):
+        import time
+
+        from tests.test_ui_runs import FakeProc, write_run
+        from tradingagents.ui import runs as rn
+
+        for name in list(store.registry()):
+            monkeypatch.delenv(name, raising=False)
+        monkeypatch.setenv("TRADINGAGENTS_LLM_PROVIDER", "anthropic")
+        monkeypatch.setenv("TRADINGAGENTS_QUICK_THINK_LLM", "claude-haiku-5-5")
+        monkeypatch.setenv("TRADINGAGENTS_DEEP_THINK_LLM", "claude-sonnet-5")
+        monkeypatch.setenv("ANTHROPIC_API_KEY", KEY)
+        monkeypatch.setattr(server, "holdings_folders", lambda cfg: [tmp_path / "none"])
+        opened, state = [], {"hold": False}
+
+        def launcher(command, env, cwd, console):
+            if state["hold"]:
+                return FakeProc(0, hold=True)
+            write_run(tmp_path / "logs", ticker=command[command.index("--ticker") + 1], day=command[command.index("--date") + 1])
+            return FakeProc(0)
+
+        manager = rn.RunManager(tmp_path / "logs", launcher=launcher, python="python", poll_seconds=0.005,
+                                sleep=lambda s: time.sleep(0.005), killer=lambda p: setattr(p, "killed", True),
+                                opener=lambda p: opened.append(p) or True)
+        yield manager, opened, state, tmp_path
+        manager.shutdown()
+
+    def body(self, **changes):
+        base = {"tickers": ["NVDA"], "date": server.date.today().isoformat(), "analysts": ["market"], "depth": 1, "passes": 5,
+                "language": "English", "holdings": None, "selloff": True, "scorecard": True, "open_report": True}
+        base.update(changes)
+        return base
+
+    def start(self, c, manager, **changes):
+        r = c.post("/api/runs", headers=HEADERS, json=self.body(**changes))
+        assert r.status_code == 202, r.text
+        return r.json()["started"]
+
+    def wait_done(self, manager, ids):
+        import time
+
+        end = time.time() + 5
+        while time.time() < end and any(manager.get(i)["status"] != "done" for i in ids):
+            time.sleep(0.01)
+        assert all(manager.get(i)["status"] == "done" for i in ids)
+
+    def test_every_new_endpoint_needs_the_token(self, dotenv, setup):
+        c = client(dotenv, runs=setup[0])
+        job = "20261108-101010-abcd"
+        assert c.get(f"/api/runs/{job}/live").status_code == 401
+        assert c.post(f"/api/runs/{job}/open-report").status_code == 401
+        assert c.post("/api/export", json={"format": "csv", "ids": []}).status_code == 401
+
+    def test_the_live_view_follows_a_running_analysis(self, dotenv, setup):
+        import time
+
+        from tradingagents.live_events import FILE_NAME, EventLog
+
+        manager, _, state, tmp_path = setup
+        state["hold"] = True
+        c = client(dotenv, runs=manager)
+        job, = self.start(c, manager)
+        end = time.time() + 5
+        while manager.get(job)["status"] != "running" and time.time() < end:
+            time.sleep(0.01)
+        run_dir = tmp_path / "logs" / "NVDA" / server.date.today().isoformat()
+        log = EventLog(run_dir / FILE_NAME)
+        log.record("Market Analyst", "Agent", "Looking at the price history.")
+        log.record("Market Analyst", "Tool Call", "get_stock_data(start_date=2025-11-08)")
+        (run_dir / "reports").mkdir(parents=True, exist_ok=True)
+        (run_dir / "reports" / "market_report.md").write_text("The market report.", encoding="utf-8")
+
+        first = c.get(f"/api/runs/{job}/live", headers=HEADERS).json()
+        assert first["status"] == "running" and [e["kind"] for e in first["events"]] == ["thought", "request"]
+        assert first["events"][0]["source"] == "Market Analyst" and first["next"] > 0
+        assert {a["id"]: a["state"] for a in first["agents"]}["market"] == "done"
+        assert first["sections"][0]["text"] == "The market report."
+
+        log.record("Market Analyst", "Data", "250 rows of prices")
+        rev = first["sections"][0]["rev"]
+        again = c.get(f"/api/runs/{job}/live", headers=HEADERS, params={"after": first["next"], "have": f"market:{rev}"}).json()
+        assert [e["kind"] for e in again["events"]] == ["data"] and again["sections"][0]["text"] is None
+
+    @pytest.mark.parametrize("job_id", ["nope", "../../x", "20261108-101010-abcd"])
+    def test_the_live_view_of_something_unknown_is_a_404(self, dotenv, setup, job_id):
+        assert client(dotenv, runs=setup[0]).get(f"/api/runs/{job_id}/live", headers=HEADERS).status_code == 404
+
+    def test_odd_query_values_are_refused_or_ignored(self, dotenv, setup):
+        manager, _, state, _ = setup
+        state["hold"] = True
+        c = client(dotenv, runs=manager)
+        job, = self.start(c, manager)
+        assert c.get(f"/api/runs/{job}/live", headers=HEADERS, params={"after": -1}).status_code == 404
+        assert c.get(f"/api/runs/{job}/live", headers=HEADERS, params={"after": "x"}).status_code == 422
+        junk = "a:b,../../etc:1-2,market:zz-1,x" + ",y:1-1" * 50
+        assert c.get(f"/api/runs/{job}/live", headers=HEADERS, params={"have": junk}).status_code == 200
+
+    def test_a_finished_analysis_opens_its_report_by_itself_and_on_request(self, dotenv, setup):
+        manager, opened, _, _ = setup
+        c = client(dotenv, runs=manager)
+        job, = self.start(c, manager)
+        self.wait_done(manager, [job])
+        import time
+
+        end = time.time() + 5
+        while not opened and time.time() < end:
+            time.sleep(0.01)
+        assert len(opened) == 1 and opened[0].name == "complete_report.html"
+        assert c.post(f"/api/runs/{job}/open-report", headers=HEADERS).json() == {"opened": True} and len(opened) == 2
+
+    def test_opening_a_report_that_does_not_exist_is_a_404(self, dotenv, setup):
+        manager, opened, state, _ = setup
+        state["hold"] = True
+        c = client(dotenv, runs=manager)
+        job, = self.start(c, manager)
+        assert c.post(f"/api/runs/{job}/open-report", headers=HEADERS).status_code == 404
+        assert c.post("/api/runs/bad/open-report", headers=HEADERS).status_code == 404 and opened == []
+
+    def test_all_finished_analyses_come_back_as_one_csv(self, dotenv, setup):
+        manager, _, _, _ = setup
+        c = client(dotenv, runs=manager)
+        ids = self.start(c, manager, tickers=["NVDA", "MU"], open_report=False)
+        self.wait_done(manager, ids)
+        r = c.post("/api/export", headers=HEADERS, json={"format": "csv", "ids": []})
+        assert r.status_code == 200 and r.headers["content-type"].startswith("text/csv") and "attachment" in r.headers["content-disposition"]
+        rows = list(__import__("csv").DictReader(io.StringIO(r.content.decode("utf-8").lstrip("﻿"), newline="")))
+        assert [row["ticker"] for row in rows] == ["NVDA", "MU"] and rows[0]["rating"] == "Hold" and rows[0]["conviction_score"] == "48"
+        one = c.post("/api/export", headers=HEADERS, json={"format": "csv", "ids": [ids[1]]})
+        assert [row["ticker"] for row in __import__("csv").DictReader(io.StringIO(one.content.decode("utf-8").lstrip("﻿"), newline=""))] == ["MU"]
+
+    def test_a_pdf_is_made_for_one_analysis(self, dotenv, setup, monkeypatch):
+        manager, _, _, _ = setup
+        c = client(dotenv, runs=manager)
+        asked = []
+        monkeypatch.setattr(server.exports, "html_to_pdf", lambda page, *a, **k: asked.append(page) or b"%PDF-1.4 made")
+        ids = self.start(c, manager, tickers=["NVDA", "MU"], open_report=False)
+        self.wait_done(manager, ids)
+        r = c.post("/api/export", headers=HEADERS, json={"format": "pdf", "ids": [ids[0]]})
+        assert r.status_code == 200 and r.content == b"%PDF-1.4 made" and r.headers["content-type"] == "application/pdf"
+        assert asked and asked[0].name == "complete_report.html"
+        many = c.post("/api/export", headers=HEADERS, json={"format": "pdf", "ids": ids})
+        assert many.status_code == 422 and "one analysis at a time" in many.json()["detail"]
+        assert c.post("/api/export", headers=HEADERS, json={"format": "pdf", "ids": []}).status_code == 422
+
+    def test_a_pdf_that_cannot_be_made_says_why(self, dotenv, setup, monkeypatch):
+        manager, _, _, _ = setup
+        c = client(dotenv, runs=manager)
+
+        def broken(page, *a, **k):
+            raise server.exports.ExportError("Making a PDF needs Chrome, Edge or Chromium on this computer.")
+
+        monkeypatch.setattr(server.exports, "html_to_pdf", broken)
+        job, = self.start(c, manager, open_report=False)
+        self.wait_done(manager, [job])
+        r = c.post("/api/export", headers=HEADERS, json={"format": "pdf", "ids": [job]})
+        assert r.status_code == 422 and "needs Chrome, Edge or Chromium" in r.json()["detail"]
+
+    @pytest.mark.parametrize("body, words", [
+        ({"format": "docx", "ids": []}, "Choose CSV or PDF"),
+        ({"format": "csv", "ids": ["../../x"]}, "Choose CSV or PDF"),
+        ({"format": "csv", "ids": ["20261108-101010-abcd"]}, "no finished analysis"),
+        ({"format": "csv", "ids": []}, "no finished analysis"),
+        ({"format": "pdf", "ids": ["20261108-101010-abcd"]}, "no finished analysis"),
+    ])
+    def test_a_bad_export_request_is_a_clear_422(self, dotenv, setup, body, words):
+        r = client(dotenv, runs=setup[0]).post("/api/export", headers=HEADERS, json=body)
+        assert r.status_code == 422 and words in r.json()["detail"]
+
+    def test_a_running_analysis_cannot_be_exported(self, dotenv, setup):
+        manager, _, state, _ = setup
+        state["hold"] = True
+        c = client(dotenv, runs=manager)
+        job, = self.start(c, manager)
+        assert c.post("/api/export", headers=HEADERS, json={"format": "csv", "ids": [job]}).status_code == 422
+
+    def test_the_page_offers_the_report_buttons_the_live_view_and_the_save_dialog(self):
+        from pathlib import Path
+
+        html = (Path(server.STATIC) / "index.html").read_text(encoding="utf-8")
+        js = (Path(server.STATIC) / "runs.js").read_text(encoding="utf-8")
+        assert 'id="r-open"' in html and 'id="save-all-csv"' in html and 'id="export-result"' in html and 'id="export-error"' in html
+        for needed in ("showSaveFilePicker", "/api/export", "/live?after=", "/open-report", "data-save=", "data-open-report=", "Watch the analysts live"):
+            assert needed in js
+        assert "apiBlob" in (Path(server.STATIC) / "app.js").read_text(encoding="utf-8")
 
 
 @pytest.mark.unit

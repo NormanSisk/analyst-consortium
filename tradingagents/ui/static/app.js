@@ -33,8 +33,19 @@ async function api(path, body) {
   return data;
 }
 
+// A POST whose answer is a file (CSV or PDF), returned as a Blob.
+async function apiBlob(path, body) {
+  const r = await fetch(path, {method: "POST", headers: {"X-Council-Token": TOKEN, "Content-Type": "application/json"}, body: JSON.stringify(body)});
+  if (!r.ok) {
+    let d = null;
+    try { d = await r.json(); } catch (_) { /* not JSON */ }
+    throw new Error((d && typeof d.detail === "string" && d.detail) || "The request failed (HTTP " + r.status + ").");
+  }
+  return r.blob();
+}
+
 // ---------------------------------------------------------------- results
-const badge = st => `<div class="badge ${st}"><span aria-hidden="true">${SYMBOL[st]}</span><span>${LABEL[st]}</span></div>`;
+const badge =st => `<div class="badge ${st}"><span aria-hidden="true">${SYMBOL[st]}</span><span>${LABEL[st]}</span></div>`;
 
 function fixTarget(r) {
   if (r.id.indexOf("ai.key.") === 0 || /^ai\.(quick|deep)\.call$/.test(r.id)) return "f-key";   // a failed live test is most often the key

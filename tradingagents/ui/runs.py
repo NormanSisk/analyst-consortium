@@ -23,6 +23,7 @@ import subprocess
 import sys
 import threading
 import time
+import zlib
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from datetime import date as _date
@@ -34,6 +35,7 @@ from tradingagents.agents.conviction import borderline_note, read_score
 from tradingagents.agents.rating import is_review, run_rating
 from tradingagents.dataflows.symbols import normalize_symbol, safe_ticker_component
 from tradingagents.doctor import scrub
+from tradingagents.live_events import FILE_NAME, read_events
 
 # --------------------------------------------------------------------------- what the form offers
 
@@ -190,7 +192,8 @@ def clean_request(raw: Mapping[str, Any], *, today: _date, holdings: Mapping[str
 
     return {"tickers": tickers, "date": day.isoformat(), "analysts": analysts, "depth": depth, "passes": passes,
             "language": language, "holdings": holdings_name,
-            "selloff": bool(raw.get("selloff", True)), "scorecard": bool(raw.get("scorecard", True))}
+            "selloff": bool(raw.get("selloff", True)), "scorecard": bool(raw.get("scorecard", True)),
+            "open_report": bool(raw.get("open_report", True))}
 
 
 # --------------------------------------------------------------------------- one run's command and environment
@@ -242,6 +245,13 @@ def launch(command: list[str], env: dict[str, str], cwd: str | None, console: Pa
     if proc.stdin is not None:
         proc.stdin.close()
     return proc
+
+
+def open_in_browser(page: Path) -> bool:
+    """Show a saved report in the user's own browser (this program runs on their computer, so it can)."""
+    import webbrowser
+
+    return webbrowser.open(Path(page).resolve().as_uri())
 
 
 def kill_tree(proc) -> None:
@@ -325,6 +335,14 @@ def read_progress(run_dir: Path, job: "Job", now: float, finished: bool = False)
 
 
 _SUMMARY = re.compile(r"\*\*Executive Summary\*\*:\s*(.+?)(?:\n\s*\n|\Z)", re.DOTALL)
+_FIELD = re.compile(r"^\*\*([^*\n]+?)\*\*:[ \t]*", re.MULTILINE)
+
+
+def decision_fields(text: str) -> dict[str, str]:
+    """The labeled parts of a rendered decision (``**Price Target**: ...``): {label: text up to the next label}."""
+    found = list(_FIELD.finditer(text or ""))
+    return {m.group(1).strip(): text[m.end(): found[i + 1].start() if i + 1 < len(found) else len(text)].strip()
+            for i, m in enumerate(found)}
 
 
 def read_result(results_dir: Path, ticker: str, day: str, since: float) -> dict | None:
@@ -360,12 +378,138 @@ def read_result(results_dir: Path, ticker: str, day: str, since: float) -> dict 
     for row in (state.get("structured_fallbacks") or {}).values():
         if isinstance(row, dict):
             fallbacks += int(row.get("fallbacks") or 0)
+    fields = decision_fields(decision)
     return {
         "rating": rating, "review": review, "score": read_score(decision),
         "borderline": None if note is None else bool(note[1]), "borderline_text": "" if note is None else note[0],
         "summary": summary.group(1).strip() if summary else "", "panel": panel,
+        "price_target": fields.get("Price Target", ""), "time_horizon": fields.get("Time Horizon", ""),
+        "thesis": fields.get("Investment Thesis", ""),
         "cost_usd": usage.get("estimated_cost_usd"), "seconds": usage.get("seconds"), "llm_calls": usage.get("llm_calls"),
         "fallbacks": fallbacks, "report_dir": _newest_report(Path(results_dir), ticker, since),
+    }
+
+
+# ---- the live view: who said what, and each agent's report as it appears
+
+# (id, title) for every part of the team a report file can hold; the analysts come first, in the program's order.
+TEAM_TITLES = {
+    "market": "Market analyst", "social": "Sentiment analyst", "news": "News analyst", "fundamentals": "Fundamentals analyst",
+    "bull": "Bull researcher", "bear": "Bear researcher", "manager": "Research manager", "trader": "Trader",
+    "aggressive": "Aggressive risk analyst", "conservative": "Conservative risk analyst", "neutral": "Neutral risk analyst",
+    "pm": "Portfolio manager",
+}
+# The heading a debate role's text sits under inside investment_plan.md and final_trade_decision.md.
+DEBATE_HEADINGS = {
+    "Bull Researcher Analysis": "bull", "Bear Researcher Analysis": "bear", "Research Manager Decision": "manager",
+    "Aggressive Analyst Analysis": "aggressive", "Conservative Analyst Analysis": "conservative",
+    "Neutral Analyst Analysis": "neutral", "Portfolio Manager Decision": "pm",
+}
+# The groups the page shows, in the order the work happens, with the step of read_progress that covers each.
+LIVE_GROUPS = (
+    ("analysts", "Analysts", ("market", "social", "news", "fundamentals"), 0),
+    ("research", "Research panel", ("bull", "bear", "manager"), 1),
+    ("trading", "Trader", ("trader",), 2),
+    ("risk", "Risk team and portfolio manager", ("aggressive", "conservative", "neutral", "pm"), 3),
+)
+_HEADING = re.compile(r"^###\s+(.+?)\s*$", re.MULTILINE)
+
+
+def _split_headings(text: str) -> dict[str, str]:
+    """A report file's text cut at its ``###`` headings: {heading: the text under it}."""
+    found = list(_HEADING.finditer(text))
+    return {m.group(1): text[m.end(): found[i + 1].start() if i + 1 < len(found) else len(text)].strip()
+            for i, m in enumerate(found)}
+
+
+def read_sections(reports: Path, since: float) -> dict[str, str]:
+    """The reports filed so far by this run, by team-member id. Files from an earlier run are ignored."""
+    out: dict[str, str] = {}
+    for key, name in REPORT_FILE.items():
+        text = _text(reports / name, since).strip()
+        if text:
+            out[key] = text
+    trader = _text(reports / "trader_investment_plan.md", since).strip()
+    if trader:
+        out["trader"] = trader
+    for name in ("investment_plan.md", "final_trade_decision.md"):
+        for heading, body in _split_headings(_text(reports / name, since)).items():
+            if heading in DEBATE_HEADINGS and body:
+                out[DEBATE_HEADINGS[heading]] = body
+    return out
+
+
+# Where the saved report folder keeps each team member's text. When a run ends, its working files are overwritten
+# with the final text (the debate headings are gone), so a finished run's views come from here instead.
+SAVED_FILES = {
+    "market": "1_analysts/market.md", "social": "1_analysts/sentiment.md", "news": "1_analysts/news.md",
+    "fundamentals": "1_analysts/fundamentals.md", "bull": "2_research/bull.md", "bear": "2_research/bear.md",
+    "manager": "2_research/manager.md", "trader": "3_trading/trader.md", "aggressive": "4_risk/aggressive.md",
+    "conservative": "4_risk/conservative.md", "neutral": "4_risk/neutral.md", "pm": "5_portfolio/decision.md",
+}
+
+
+def read_saved_sections(folder: Path) -> dict[str, str]:
+    """Each team member's text from a finished run's saved report folder (members with no file are left out)."""
+    out: dict[str, str] = {}
+    for key, relative in SAVED_FILES.items():
+        try:
+            text = (Path(folder) / relative).read_text(encoding="utf-8", errors="replace").strip()
+        except OSError:
+            continue
+        if text:
+            out[key] = text
+    return out
+
+
+def team_status(job: "Job", sections: Mapping[str, str], stages: list[dict] | None) -> list[dict]:
+    """Every team member this run involves, with a state: waiting, working, done or missing (the run ended without it)."""
+    over = job.status not in STATUS_ACTIVE
+    out = []
+    for group, group_title, members, step in LIVE_GROUPS:
+        for member in members:
+            if group == "analysts" and member not in job.analysts:
+                continue
+            if member in sections:
+                state = "done"
+            elif over:
+                state = "missing"
+            elif stages and stages[step]["state"] == "now":
+                state = "working"
+            else:
+                state = "waiting"
+            out.append({"id": member, "title": TEAM_TITLES[member], "group": group, "group_title": group_title, "state": state})
+    return out
+
+
+def _rev(text: str) -> str:
+    return f"{zlib.crc32(text.encode('utf-8', errors='replace')):x}-{len(text)}"
+
+
+def read_live(run_dir: Path, job: "Job", now: float, after: int = 0, have: Mapping[str, str] | None = None,
+              saved: Path | None = None) -> dict:
+    """Everything the live view needs for one analysis, new since the caller's last look.
+
+    ``after`` is the event-log offset the caller got last time; ``have`` maps a section id to the revision the caller
+    already holds, and a section it already has comes back without its text. ``saved`` is the finished run's report
+    folder, whose per-member files take over from the working files once the run has ended.
+    """
+    since = job.started or 0.0
+    log = Path(run_dir) / FILE_NAME
+    events, offset = ([], 0) if not _fresh(log, since) else read_events(log, after)
+    for event in events:            # nothing that looks like a key reaches the page, whatever a data vendor echoed
+        event["text"] = "\n".join(scrub(line, os.environ, 20000) for line in str(event.get("text", "")).split("\n"))
+    sections = read_sections(Path(run_dir) / "reports", since)
+    if saved is not None:
+        sections.update(read_saved_sections(saved))
+    progress = read_progress(run_dir, job, now, finished=job.status == "done") if job.started else None
+    have = have or {}
+    return {
+        "status": job.status, "events": events, "next": offset, "passes": job.passes,
+        "agents": team_status(job, sections, progress["stages"] if progress else None),
+        "sections": [{"id": key, "title": TEAM_TITLES[key], "rev": _rev(text),
+                      "text": None if have.get(key) == _rev(text) else text}
+                     for key, text in sections.items()],
     }
 
 
@@ -409,6 +553,7 @@ class Job:
     provider: str
     quick: str
     deep: str
+    open_report: bool = True                # open the HTML report in the browser when this analysis finishes
     notes: list[str] = field(default_factory=list)
     status: str = "waiting"                 # waiting, running, done, failed, stopped
     created: float = 0.0
@@ -443,9 +588,11 @@ class RunManager:
                  launcher: Callable[..., Any] = launch, python: str | None = None, cwd: str | None = None,
                  base_env: Callable[[], Mapping[str, str]] | None = None, now: Callable[[], float] = time.time,
                  sleep: Callable[[float], None] = time.sleep, poll_seconds: float = 0.5, keep: int = 30,
-                 killer: Callable[[Any], None] = kill_tree, start_worker: bool = True) -> None:
+                 killer: Callable[[Any], None] = kill_tree, opener: Callable[[Path], Any] = open_in_browser,
+                 start_worker: bool = True) -> None:
         self.results_dir = Path(results_dir)
         self.root = self.results_dir / "ui-runs"
+        self._opener = opener
         self._holdings = holdings or (lambda: {})
         self._launcher, self._python, self._cwd = launcher, python or sys.executable, cwd
         self._base_env = base_env or (lambda: dict(os.environ))
@@ -517,7 +664,8 @@ class RunManager:
                 made.append(Job(id=job_id, ticker=symbol, date=request["date"], analysts=analysts,
                                 depth=request["depth"], passes=request["passes"], language=request["language"],
                                 holdings=request["holdings"], selloff=request["selloff"], scorecard=request["scorecard"],
-                                provider=provider, quick=quick, deep=deep, notes=notes, created=self._now()))
+                                provider=provider, quick=quick, deep=deep, notes=notes, created=self._now(),
+                                open_report=bool(request.get("open_report", True))))
             for job in made:                # nothing is queued unless every symbol in the request can be
                 self._jobs.append(job)
                 self._save(job)
@@ -575,6 +723,53 @@ class RunManager:
         with self._cv:
             job = self._find(job_id)
         return None if job is None else self._public(job, self._now(), None)
+
+    def live(self, job_id: str, after: int = 0, have: Mapping[str, str] | None = None) -> dict | None:
+        """The live view of one analysis (new events, each agent's state and report); None for an unknown id."""
+        with self._cv:
+            job = self._find(job_id)
+        if job is None:
+            return None
+        run_dir = self.results_dir / safe_ticker_component(job.ticker) / job.date
+        return read_live(run_dir, job, self._now(), after, have, saved=self._saved_folder(job))
+
+    def _saved_folder(self, job: Job) -> Path | None:
+        """A finished analysis's saved report folder, only if it is still inside the results folder."""
+        folder = (job.result or {}).get("report_dir") if job.status == "done" else None
+        if not folder:
+            return None
+        try:
+            path = Path(folder).resolve()
+            return path if path.is_relative_to(self.results_dir.resolve()) and path.is_dir() else None
+        except (OSError, ValueError):
+            return None
+
+    def report_file(self, job_id: str) -> Path | None:
+        """The finished analysis's HTML report, if it has one and it is still inside the results folder."""
+        with self._cv:
+            job = self._find(job_id)
+        folder = self._saved_folder(job) if job else None
+        page = None if folder is None else folder / "complete_report.html"
+        return page if page is not None and page.is_file() else None
+
+    def show_report(self, job_id: str, automatic: bool = False) -> bool:
+        """Open the analysis's HTML report in the user's browser. ``automatic`` obeys the job's own open-it-for-me choice."""
+        with self._cv:
+            job = self._find(job_id)
+        if job is None or (automatic and not job.open_report):
+            return False
+        page = self.report_file(job_id)
+        if page is None:
+            return False
+        try:
+            return bool(self._opener(page))
+        except Exception:  # noqa: BLE001 - a browser that will not start must not disturb the queue
+            return False
+
+    def finished(self, ids: list[str] | None = None) -> list[Job]:
+        """Done analyses, oldest first, optionally only those with the given ids (unknown ids are ignored)."""
+        with self._cv:
+            return [j for j in self._jobs if j.status == "done" and (ids is None or j.id in ids)]
 
     def _public(self, job: Job, now: float, place: int | None) -> dict:
         data = job.to_dict()
@@ -635,6 +830,7 @@ class RunManager:
         if code == 0 and result is not None:
             job.result = result
             self._finish(job, "done")
+            self.show_report(job.id, automatic=True)
         else:
             reason = ("The analysis ended without writing a decision." if code == 0
                       else f"The analysis stopped with an error (exit code {code}).")

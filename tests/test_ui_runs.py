@@ -45,7 +45,12 @@ def write_run(results, ticker="NVDA", day="2026-11-08", decision=DECISION, ratin
     (run / "reports").mkdir(parents=True, exist_ok=True)
     (run / "usage.json").write_text(json.dumps({"estimated_cost_usd": 0.38, "seconds": 351, "llm_calls": 29}), encoding="utf-8")
     if report:
-        (results / "reports" / f"{ticker}_20261108_101010").mkdir(parents=True, exist_ok=True)
+        folder = results / "reports" / f"{ticker}_20261108_101010"
+        folder.mkdir(parents=True, exist_ok=True)
+        (folder / "complete_report.html").write_text("<html><body>report</body></html>", encoding="utf-8")
+        for relative in rn.SAVED_FILES.values():          # the per-member files a saved report holds
+            (folder / relative).parent.mkdir(parents=True, exist_ok=True)
+            (folder / relative).write_text(f"saved text of {relative}", encoding="utf-8")
 
 
 # ---------------------------------------------------------------------------------------------- the request
@@ -342,12 +347,19 @@ class Rig:
     def __init__(self, tmp_path, books=None, behave=None):
         self.results = tmp_path / "logs"
         self.books = dict(books or {})
-        self.launches, self.procs = [], []
+        self.launches, self.procs, self.opened = [], [], []
+        self.open_result = True
         self.behave = behave or (lambda job_args, rig: FakeProc(0))
         self.manager = rn.RunManager(
             self.results, holdings=lambda: dict(self.books), launcher=self.launch, python="python", cwd=None,
             base_env=lambda: {"BASE": "1"}, sleep=lambda s: time.sleep(0.005), poll_seconds=0.005,
-            killer=lambda proc: setattr(proc, "killed", True))
+            killer=lambda proc: setattr(proc, "killed", True), opener=self.open_page)
+
+    def open_page(self, page):
+        if isinstance(self.open_result, Exception):
+            raise self.open_result
+        self.opened.append(page)
+        return self.open_result
 
     def launch(self, command, env, cwd, console):
         args = {"command": command, "env": env, "console": console}
@@ -582,3 +594,257 @@ class TestRealProcess:
         rn.kill_tree(proc)
         assert proc.wait(timeout=30) is not None
         rn.kill_tree(proc)                                     # a second call on a finished child is harmless
+
+
+# ---------------------------------------------------------------------------------------------- the live view
+
+PLAN = ("### Bull Researcher Analysis\nBull says buy.\n\n### Bear Researcher Analysis\nBear says sell.\n\n"
+        "### Research Manager Decision\nManager says hold.")
+RISK = ("### Aggressive Analyst Analysis\nGo big.\n\n### Conservative Analyst Analysis\nStay small.\n\n"
+        "### Neutral Analyst Analysis\nSplit it.\n\n### Portfolio Manager Decision\n**Rating**: Hold")
+
+
+def put(run_dir, name, text):
+    path = run_dir / "reports" / name
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text, encoding="utf-8")
+    return path
+
+
+def started_job(**changes):
+    job = make_job(**changes)
+    job.started, job.status = time.time() - 5, "running"
+    return job
+
+
+@pytest.mark.unit
+class TestSections:
+    def test_every_part_of_the_team_is_found_in_its_file(self, tmp_path):
+        since = time.time() - 5
+        put(tmp_path, "market_report.md", "market text")
+        put(tmp_path, "sentiment_report.md", "sentiment text")
+        put(tmp_path, "investment_plan.md", PLAN)
+        put(tmp_path, "trader_investment_plan.md", "trader text")
+        put(tmp_path, "final_trade_decision.md", RISK)
+        got = rn.read_sections(tmp_path / "reports", since)
+        assert got == {"market": "market text", "social": "sentiment text", "bull": "Bull says buy.", "bear": "Bear says sell.",
+                       "manager": "Manager says hold.", "trader": "trader text", "aggressive": "Go big.",
+                       "conservative": "Stay small.", "neutral": "Split it.", "pm": "**Rating**: Hold"}
+
+    def test_a_debate_still_in_progress_shows_only_what_has_been_said(self, tmp_path):
+        put(tmp_path, "investment_plan.md", "### Bull Researcher Analysis\nBull says buy.")
+        put(tmp_path, "final_trade_decision.md", "### Aggressive Analyst Analysis\nGo big.")
+        got = rn.read_sections(tmp_path / "reports", time.time() - 5)
+        assert got == {"bull": "Bull says buy.", "aggressive": "Go big."}
+
+    def test_files_from_an_earlier_run_are_ignored(self, tmp_path):
+        old = put(tmp_path, "market_report.md", "yesterday")
+        os.utime(old, (time.time() - 3600, time.time() - 3600))
+        assert rn.read_sections(tmp_path / "reports", time.time() - 5) == {}
+
+    def test_unknown_headings_and_empty_bodies_are_left_out(self, tmp_path):
+        put(tmp_path, "investment_plan.md", "### Something Else\nx\n\n### Bull Researcher Analysis\n")
+        assert rn.read_sections(tmp_path / "reports", time.time() - 5) == {}
+
+    def test_headings_are_split_on_lines_only(self):
+        assert rn._split_headings("intro\n### A\nbody with ### inside\n### B\nmore") == {"A": "body with ### inside", "B": "more"}
+
+
+@pytest.mark.unit
+class TestTeamStatus:
+    STAGES = [{"state": s} for s in ("done", "now", "waiting", "waiting", "waiting")]
+
+    def test_the_team_follows_the_jobs_analysts_and_the_step_under_way(self):
+        job = started_job(analysts=["market", "news"])
+        team = rn.team_status(job, {"market": "report"}, self.STAGES)
+        assert [(m["id"], m["state"]) for m in team] == [
+            ("market", "done"), ("news", "waiting"), ("bull", "working"), ("bear", "working"), ("manager", "working"),
+            ("trader", "waiting"), ("aggressive", "waiting"), ("conservative", "waiting"), ("neutral", "waiting"), ("pm", "waiting")]
+        assert team[0]["group"] == "analysts" and team[2]["group_title"] == "Research panel"
+
+    def test_analysts_work_while_the_first_step_is_under_way(self):
+        stages = [{"state": "now"}] + [{"state": "waiting"}] * 4
+        team = rn.team_status(started_job(analysts=["market", "social"]), {}, stages)
+        assert [m["state"] for m in team[:2]] == ["working", "working"]
+
+    def test_a_finished_run_marks_what_never_filed_as_missing(self):
+        job = started_job(analysts=["market"])
+        job.status = "failed"
+        team = rn.team_status(job, {"market": "x", "bull": "y"}, None)
+        states = {m["id"]: m["state"] for m in team}
+        assert states["market"] == "done" and states["bull"] == "done" and states["bear"] == "missing" and states["pm"] == "missing"
+
+    def test_without_progress_an_active_job_is_waiting(self):
+        assert {m["state"] for m in rn.team_status(started_job(analysts=["market"]), {}, None)} == {"waiting"}
+
+
+@pytest.mark.unit
+class TestReadLive:
+    def write_events(self, run_dir, *items):
+        from tradingagents.live_events import FILE_NAME, EventLog
+
+        log = EventLog(run_dir / FILE_NAME)
+        for source, kind, text in items:
+            log.record(source, kind, text)
+
+    def test_events_sections_and_states_come_together(self, tmp_path):
+        job = started_job(analysts=["market"])
+        self.write_events(tmp_path, ("Market Analyst", "Agent", "Looking at prices."), ("Market Analyst", "Tool Call", "get_stock_data(a=1)"))
+        put(tmp_path, "market_report.md", "the market report")
+        out = rn.read_live(tmp_path, job, time.time())
+        assert [e["text"] for e in out["events"]] == ["Looking at prices.", "get_stock_data(a=1)"]
+        assert out["status"] == "running" and out["passes"] == 7
+        states = {a["id"]: a["state"] for a in out["agents"]}
+        assert states["market"] == "done"
+        assert out["sections"] == [{"id": "market", "title": "Market analyst", "rev": rn._rev("the market report"), "text": "the market report"}]
+
+    def test_a_second_look_gets_only_what_is_new_and_no_repeated_text(self, tmp_path):
+        from tradingagents.live_events import FILE_NAME, EventLog
+
+        job = started_job(analysts=["market"])
+        log = EventLog(tmp_path / FILE_NAME)
+        log.record("Market Analyst", "Agent", "one")
+        put(tmp_path, "market_report.md", "report")
+        first = rn.read_live(tmp_path, job, time.time())
+        log.record("Market Analyst", "Agent", "two")                 # a reader that holds the first answer asks again
+        again = rn.read_live(tmp_path, job, time.time(), first["next"], {"market": first["sections"][0]["rev"]})
+        assert [e["text"] for e in again["events"]] == ["two"]
+        assert again["sections"][0]["text"] is None and again["sections"][0]["rev"] == first["sections"][0]["rev"]
+
+    def test_a_changed_section_is_sent_again(self, tmp_path):
+        job = started_job(analysts=["market"])
+        put(tmp_path, "market_report.md", "version one")
+        old = rn.read_live(tmp_path, job, time.time())["sections"][0]["rev"]
+        put(tmp_path, "market_report.md", "version two")
+        out = rn.read_live(tmp_path, job, time.time(), 0, {"market": old})
+        assert out["sections"][0]["text"] == "version two"
+
+    def test_events_from_an_earlier_run_are_ignored(self, tmp_path):
+        from tradingagents.live_events import FILE_NAME
+
+        job = started_job()
+        self.write_events(tmp_path, ("Market Analyst", "Agent", "old news"))
+        os.utime(tmp_path / FILE_NAME, (time.time() - 3600, time.time() - 3600))
+        assert rn.read_live(tmp_path, job, time.time())["events"] == []
+
+    def test_nothing_that_looks_like_a_key_reaches_the_page(self, tmp_path):
+        job = started_job()
+        self.write_events(tmp_path, ("News Analyst", "Data", "line one\nheader api_key=SECRETVALUE123 and sk-ant-ABCDEFGHIJKLMNOP1234\nline three"))
+        text = rn.read_live(tmp_path, job, time.time())["events"][0]["text"]
+        assert "SECRETVALUE123" not in text and "sk-ant-ABCDEFGH" not in text and text.count("\n") == 2
+
+    def test_a_finished_run_reads_each_members_text_from_the_saved_report(self, tmp_path):
+        """At the end a run overwrites its working files with final text that has no debate headings."""
+        job = started_job(analysts=["market"])
+        job.status = "done"
+        saved = tmp_path / "saved"
+        for relative, text in {"1_analysts/market.md": "M", "2_research/bull.md": "B", "4_risk/neutral.md": "N",
+                               "5_portfolio/decision.md": "P"}.items():
+            (saved / relative).parent.mkdir(parents=True, exist_ok=True)
+            (saved / relative).write_text(text, encoding="utf-8")
+        put(tmp_path, "investment_plan.md", "Only the manager's plan, no headings.")
+        out = rn.read_live(tmp_path, job, time.time(), saved=saved)
+        states = {a["id"]: a["state"] for a in out["agents"]}
+        assert states["market"] == states["bull"] == states["neutral"] == states["pm"] == "done"
+        assert states["bear"] == "missing" and states["trader"] == "missing"
+        assert {s["id"]: s["text"] for s in out["sections"]} == {"market": "M", "bull": "B", "neutral": "N", "pm": "P"}
+
+    def test_saved_files_that_are_missing_or_empty_are_simply_left_out(self, tmp_path):
+        (tmp_path / "2_research").mkdir()
+        (tmp_path / "2_research" / "bull.md").write_text("   \n", encoding="utf-8")
+        assert rn.read_saved_sections(tmp_path) == {} and rn.read_saved_sections(tmp_path / "nowhere") == {}
+
+    def test_the_manager_serves_a_finished_run_from_its_saved_report_and_never_from_outside_the_results(self, rig):
+        r = rig(behave=succeeding)
+        job, = r.submit()
+        r.wait(lambda: r.status(job) == "done")
+        out = r.manager.live(job.id)
+        assert {a["id"]: a["state"] for a in out["agents"]}["bull"] == "done"
+        assert any(s["text"] == "saved text of 2_research/bull.md" for s in out["sections"])
+        found = next(j for j in r.manager._jobs if j.id == job.id)
+        found.result["report_dir"] = str(r.results / ".." / "elsewhere")
+        assert {a["id"]: a["state"] for a in r.manager.live(job.id)["agents"]}["bull"] == "missing"
+
+    def test_a_job_that_has_not_started_has_an_empty_view(self, tmp_path):
+        job = make_job()
+        out = rn.read_live(tmp_path, job, time.time())
+        assert out["events"] == [] and out["sections"] == [] and {a["state"] for a in out["agents"]} == {"waiting"}
+
+    def test_the_manager_answers_for_a_known_job_only(self, tmp_path):
+        manager = rn.RunManager(tmp_path, launcher=lambda *a: FakeProc(0, hold=True), start_worker=False)
+        assert manager.live("20261108-101010-abcd") is None
+        job, = manager.submit(clean(request()), "anthropic", "claude-haiku-5-5", "claude-sonnet-5")
+        assert manager.live(job.id)["status"] == "waiting"
+
+
+# ---------------------------------------------------------------------------------------------- the report
+
+@pytest.mark.unit
+class TestReportOpening:
+    def finish(self, r, **changes):
+        job, = r.submit(**changes)
+        r.wait(lambda: r.status(job) == "done")
+        return job
+
+    def test_a_finished_analysis_opens_its_report_by_itself(self, rig):
+        r = rig(behave=succeeding)
+        job = self.finish(r)
+        r.wait(lambda: r.opened)
+        assert len(r.opened) == 1 and r.opened[0].name == "complete_report.html" and r.opened[0].is_file()
+        assert r.manager.report_file(job.id) == r.opened[0]
+
+    def test_the_choice_to_not_open_it_is_respected_but_a_click_still_opens_it(self, rig):
+        r = rig(behave=succeeding)
+        job = self.finish(r, open_report=False)
+        time.sleep(0.1)
+        assert r.opened == []
+        assert r.manager.show_report(job.id) is True and len(r.opened) == 1
+
+    def test_the_choice_is_saved_with_the_job(self, rig):
+        r = rig(behave=succeeding)
+        job = self.finish(r, open_report=False)
+        saved = json.loads((r.results / "ui-runs" / job.id / "job.json").read_text(encoding="utf-8"))
+        assert saved["open_report"] is False
+
+    def test_a_browser_that_will_not_open_never_disturbs_the_queue(self, rig):
+        r = rig(behave=succeeding)
+        r.open_result = OSError("no browser")
+        first, second = r.submit(tickers=["NVDA", "MU"])
+        r.wait(lambda: r.status(second) == "done")
+        assert r.status(first) == "done" and r.manager.show_report(first.id) is False
+
+    def test_no_report_means_nothing_to_open(self, rig):
+        r = rig(behave=lambda a, rig_: write_run(rig_.results, report=False) or FakeProc(0))
+        job = self.finish(r)
+        assert r.manager.report_file(job.id) is None and r.manager.show_report(job.id) is False and r.opened == []
+
+    def test_a_report_outside_the_results_folder_is_never_opened(self, rig, tmp_path):
+        r = rig(behave=succeeding)
+        job = self.finish(r)
+        outside = tmp_path / "elsewhere"
+        outside.mkdir()
+        (outside / "complete_report.html").write_text("<html></html>", encoding="utf-8")
+        found = next(j for j in r.manager._jobs if j.id == job.id)
+        found.result["report_dir"] = str(outside)
+        assert r.manager.report_file(job.id) is None
+        found.result["report_dir"] = str(r.results / ".." / "elsewhere")
+        assert r.manager.report_file(job.id) is None
+
+    def test_only_a_done_analysis_has_a_report(self, rig):
+        r = rig(behave=lambda a, rig_: FakeProc(0, hold=True))
+        job, = r.submit()
+        r.wait(lambda: r.status(job) == "running")
+        assert r.manager.report_file(job.id) is None and r.manager.report_file("20261108-101010-abcd") is None
+        assert r.manager.show_report("20261108-101010-abcd") is False
+
+    def test_finished_lists_done_analyses_oldest_first_and_filters_by_id(self, rig):
+        r = rig(behave=succeeding)
+        a, b = r.submit(tickers=["NVDA", "MU"])
+        r.wait(lambda: r.status(b) == "done")
+        assert [j.ticker for j in r.manager.finished()] == ["NVDA", "MU"]
+        assert [j.ticker for j in r.manager.finished([b.id, "nope"])] == ["MU"]
+        assert r.manager.finished(["nope"]) == []
+
+    def test_the_request_defaults_to_opening_the_report(self):
+        assert clean(request())["open_report"] is True
+        assert clean(request(open_report=False))["open_report"] is False
