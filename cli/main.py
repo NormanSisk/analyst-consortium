@@ -248,11 +248,9 @@ app.add_typer(pick_app, name="pick")
 
 
 def _pick_folder():
-    from pathlib import Path
+    from tradingagents.picker.folders import picker_folder
 
-    from tradingagents.default_config import build_default_config
-
-    return Path(build_default_config()["results_dir"]).parent / "picker"
+    return picker_folder()
 
 
 def _finish_pick(recipe, symbols, overrides, top, details, csv_path, json_output, refresh, no_log, workers):

@@ -93,7 +93,7 @@ def to_rows(result: PickResult) -> list[dict]:
                "sector_fund": r.sector_label, "sector_driven": "yes" if r.sector_driven else "no", "low_pe_check": "yes" if r.low_pe else "no",
                "forward_pe": round(f.forward_pe, 1) if f and f.forward_pe else None,
                "earnings_yield_pct": round(100 / f.forward_pe, 1) if f and f.forward_pe and f.forward_pe > 0 else None,
-               "peers_used": r.peers, "note": r.note}
+               "peers_used": r.peers, "note": r.note, "explains_63d_text": _explains(r, 63), "explains_21d_text": _explains(r, 21)}
         for code in "abcde":
             row[f"{code}_status"], row[f"{code}_detail"] = r.conditions[code].status, r.conditions[code].detail
         rows.append(row)

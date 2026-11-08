@@ -51,7 +51,53 @@
   </aside>
 
   <main id="main">
-    <section class="panel" id="run" aria-labeledby="run-h">
+    <section class="panel" id="find" aria-labelledby="find-h">
+      <h2 id="find-h">Find stocks</h2>
+      <p class="hint">A quick, free look that uses no AI and costs nothing. It finds stocks and checks each one in code against the five deal conditions the analysis uses. Tick the ones that interest you and send them to the form below, where the full analysis does the real work. It never places a trade and is not advice.</p>
+      <form class="editor" id="find-form" novalidate>
+        <fieldset class="block">
+          <legend>How to look</legend>
+          <div id="f-recipes"></div>
+        </fieldset>
+
+        <fieldset class="block" id="f-list-block" hidden>
+          <legend>Your stocks</legend>
+          <div class="field">
+            <label for="f-text">Stock symbols</label>
+            <textarea id="f-text" rows="4" autocomplete="off" spellcheck="false" placeholder="NVDA MU TSM" aria-describedby="h-ftext"></textarea>
+            <p class="hint" id="h-ftext">Separated by spaces, commas or new lines, up to 300. Stocks outside the US need their exchange ending, such as 0700.HK.</p>
+          </div>
+          <div class="field">
+            <label for="f-file">Or load a list from a file</label>
+            <input type="file" id="f-file" accept=".csv,.txt,text/csv,text/plain" aria-describedby="h-ffile">
+            <p class="hint" id="h-ffile">A CSV or text file with one symbol per row, or a column named Symbol or Ticker, such as a broker's export. It is read in this page only and it replaces what is in the box above.</p>
+            <p class="result" id="f-fileinfo" role="status" aria-live="polite"></p>
+          </div>
+        </fieldset>
+
+        <details class="advanced">
+          <summary><span class="btn-like secondary">More settings</span><span class="hint-inline">How far down, how big, how many to show</span></summary>
+          <div class="grid" id="f-settings"></div>
+          <div class="row"><button type="button" class="secondary" id="f-reset">Back to the usual settings</button></div>
+        </details>
+
+        <label class="inline"><input type="checkbox" id="f-record" checked><span id="f-record-text">Record the stocks shown in my picks log, so that later I can see how this way of looking did.</span></label>
+        <div class="row">
+          <button type="submit" id="f-start" disabled>Find stocks</button>
+        </div>
+        <p class="error" id="f-error" role="alert"></p>
+      </form>
+
+      <div id="f-progress" hidden>
+        <h3 id="f-progress-h">Searching</h3>
+        <p class="elapsed" id="f-status" role="status" aria-live="polite"></p>
+        <ol class="steps" id="f-log"></ol>
+      </div>
+      <div id="f-results" hidden></div>
+      <div class="sr-only" id="f-announce" role="status" aria-live="polite"></div>
+    </section>
+
+    <section class="panel" id="run" aria-labelledby="run-h">
       <h2 id="run-h">Run an analysis</h2>
       <p class="hint">Each stock gets its own analysis: analysts gather data, a panel of bulls and bears debates and votes, then a trader, a risk team and a portfolio manager make the call. It never places a trade.</p>
       <div class="notice" id="run-gate" hidden></div>
@@ -139,7 +185,7 @@
       </div>
       <p class="result" id="export-result" role="status" aria-live="polite"></p>
       <p class="error" id="export-error" role="alert"></p>
-      <ul class="jobs" id="runs" aria-labeledby="jobs-h"></ul>
+      <ul class="jobs" id="runs" aria-labelledby="jobs-h"></ul>
       <details class="older" id="runs-old" hidden>
         <summary><span class="btn-like secondary" id="runs-old-label">Earlier analyses</span></summary>
         <ul class="jobs" id="runs-older"></ul>
@@ -218,5 +264,6 @@
 </div>
 <script src="/static/app.js"></script>
 <script src="/static/runs.js"></script>
+<script src="/static/picker.js"></script>
 </body>
 </html>

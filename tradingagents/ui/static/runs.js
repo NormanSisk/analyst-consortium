@@ -385,8 +385,10 @@ async function openReport(id) {
 // Choosing where to save: browsers that can (Chrome, Edge) show a Save As window right away, then the file is made and
 // written there. The window must open first, straight from the click, because making a PDF can take longer than a
 // browser allows between a click and that window. Other browsers get an ordinary download.
-async function saveFile(kind, ids, baseName) {
-  const out = $("export-result"), err = $("export-error");
+// ``source`` lets another panel use the same flow: {path, body, out, err} (the request, and the ids of its two message lines).
+async function saveFile(kind, ids, baseName, source) {
+  const src = source || {path: "/api/export", body: {format: kind, ids}, out: "export-result", err: "export-error"};
+  const out = $(src.out), err = $(src.err);
   err.textContent = ""; out.textContent = "";
   const ext = kind === "pdf" ? ".pdf" : ".csv", mime = kind === "pdf" ? "application/pdf" : "text/csv", suggested = baseName.replace(/\.(csv|pdf)$/, "") + ext;
   let handle = null;
@@ -400,7 +402,7 @@ async function saveFile(kind, ids, baseName) {
   }
   out.textContent = kind === "pdf" ? "Making the PDF. This takes a few seconds..." : "Preparing the file...";
   try {
-    const blob = await apiBlob("/api/export", {format: kind, ids});
+    const blob = await apiBlob(src.path, src.body);
     if (handle) {
       const w = await handle.createWritable(); await w.write(blob); await w.close();
       out.textContent = "Saved as " + handle.name + " in the folder you chose.";

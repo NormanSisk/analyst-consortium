@@ -26,12 +26,12 @@ from urllib.parse import urlparse
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from starlette.concurrency import run_in_threadpool
 
 import tradingagents
 from tradingagents.agents.style import style_name
-from tradingagents.ui import exports
+from tradingagents.ui import exports, picker_jobs
 from tradingagents.ui import runs as run_tools
 from tradingagents.ui import settings_store as store
 
@@ -74,6 +74,30 @@ class RunRequest(BaseModel):
 class ExportRequest(BaseModel):
     format: str = Field(max_length=8)
     ids: list[str] = Field(default_factory=list, max_length=run_tools.MAX_WAITING * 4)
+
+
+class PickerSettingsIn(BaseModel):
+    """The few picker settings the page may change, in the picker's own units (a fraction, dollars). Anything else is refused."""
+
+    model_config = ConfigDict(extra="forbid")
+    below_high: float | None = None
+    min_market_cap: float | None = None
+    min_avg_volume: float | None = None
+    universe_limit: int | None = None
+    top: int | None = None
+
+
+class PickerRequest(BaseModel):
+    """A stock search, as the page sends it. ``picker_jobs.PickerManager.start`` does the real checking."""
+
+    recipe: str = Field(max_length=20)
+    text: str = Field(default="", max_length=picker_jobs.MAX_TEXT * 2)
+    settings: PickerSettingsIn = Field(default_factory=PickerSettingsIn)
+    record: bool = True
+
+
+class PickerExportRequest(BaseModel):
+    id: str = Field(max_length=40)
 
 
 def _host_ok(host: str, port: int | None) -> bool:
@@ -158,8 +182,8 @@ def build_run_options(manager: run_tools.RunManager | None = None) -> dict:
 
 
 def create_app(token: str, dotenv_path: Path | None = None, port: int | None = None,
-               runs: run_tools.RunManager | None = None) -> FastAPI:
-    """The setup and run screen. ``runs`` is the queue of analyses; by default one is made on first use."""
+               runs: run_tools.RunManager | None = None, picker: picker_jobs.PickerManager | None = None) -> FastAPI:
+    """The setup and run screen. ``runs`` is the queue of analyses and ``picker`` the stock search; by default each is made on first use."""
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
@@ -182,6 +206,16 @@ def create_app(token: str, dotenv_path: Path | None = None, port: int | None = N
                 app.state.runs = run_tools.RunManager(
                     cfg["results_dir"], holdings=lambda: {k: v["path"] for k, v in run_tools.find_holdings(folders).items()})
             return app.state.runs
+
+    app.state.picker = picker
+
+    def searcher() -> picker_jobs.PickerManager:
+        with app.state.runs_lock:
+            if app.state.picker is None:
+                from tradingagents.picker.folders import picker_folder
+
+                app.state.picker = picker_jobs.PickerManager(picker_folder())
+            return app.state.picker
 
     @app.middleware("http")
     async def guard(request: Request, call_next):
@@ -306,6 +340,37 @@ def create_app(token: str, dotenv_path: Path | None = None, port: int | None = N
         except exports.ExportError as exc:
             return JSONResponse({"detail": str(exc)}, status_code=422)
         return Response(data, media_type="application/pdf", headers={"Content-Disposition": 'attachment; filename="report.pdf"'})
+
+    @app.get("/api/picker/options")
+    async def picker_options() -> dict:
+        return await run_in_threadpool(searcher().options)
+
+    @app.post("/api/picker/run", status_code=202)
+    async def picker_run(body: PickerRequest):
+        """Start a free stock search (no AI). One runs at a time; the page then polls ``/api/picker/jobs/{id}``."""
+        overrides = body.settings.model_dump(exclude_none=True)
+        try:
+            job = await run_in_threadpool(searcher().start, body.recipe, body.text, overrides, body.record)
+        except picker_jobs.SearchBusy as exc:
+            return JSONResponse({"detail": str(exc)}, status_code=409)
+        except ValueError as exc:
+            return JSONResponse({"detail": str(exc)}, status_code=422)
+        return job
+
+    @app.get("/api/picker/jobs/{job_id}")
+    async def picker_job(job_id: str):
+        job = await run_in_threadpool(searcher().get, job_id) if picker_jobs.SEARCH_ID.fullmatch(job_id) else None
+        if job is None:
+            return JSONResponse({"detail": "That search is not known. Run it again."}, status_code=404)
+        return job
+
+    @app.post("/api/picker/export")
+    async def picker_export(body: PickerExportRequest):
+        """A finished search as a CSV; the page saves the bytes."""
+        data = await run_in_threadpool(searcher().csv, body.id) if picker_jobs.SEARCH_ID.fullmatch(body.id) else None
+        if data is None:
+            return JSONResponse({"detail": "There is no finished search to save. Run it again."}, status_code=404)
+        return Response(data, media_type="text/csv; charset=utf-8", headers={"Content-Disposition": 'attachment; filename="stocks.csv"'})
 
     app.mount("/static", StaticFiles(directory=str(STATIC)), name="static")
     return app

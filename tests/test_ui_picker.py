@@ -1,0 +1,342 @@
+"""The Find stocks panel: the background search manager, its endpoints, and the page's files.
+
+No network and no cost: the picker runs against the made-up markets in tests/picker_world.py, and the page is checked as
+text (its ids, that it uses no inline code, and that every id the script reaches for exists)."""
+
+import re
+import socket
+import threading
+import time
+from pathlib import Path
+
+import pytest
+
+pytest.importorskip("fastapi")
+
+from tests import picker_world as w  # noqa: E402
+from tradingagents.picker import ledger, quicklook  # noqa: E402
+from tradingagents.ui import picker_jobs as pj  # noqa: E402
+
+_REAL_CONNECT, _REAL_CONNECT_EX, _REAL_GETADDRINFO = socket.socket.connect, socket.socket.connect_ex, socket.getaddrinfo
+_LOOPBACK = ("127.0.0.1", "::1", "localhost")
+
+
+@pytest.fixture(autouse=True)
+def _loopback_only(_no_network, monkeypatch):
+    """The suite blocks the network; the in-process test client needs this computer's own loopback and nothing else."""
+    def ok(address):
+        return isinstance(address, tuple) and bool(address) and address[0] in _LOOPBACK
+
+    def refuse(address):
+        raise OSError(f"test tried to reach the network: {address}")
+
+    monkeypatch.setattr(socket.socket, "connect", lambda self, a: _REAL_CONNECT(self, a) if ok(a) else refuse(a))
+    monkeypatch.setattr(socket.socket, "connect_ex", lambda self, a: _REAL_CONNECT_EX(self, a) if ok(a) else refuse(a))
+    monkeypatch.setattr(socket, "getaddrinfo", lambda host, *a, **k: _REAL_GETADDRINFO(host, *a, **k) if host in _LOOPBACK else refuse((host,)))
+
+
+def wait_done(manager, job_id, seconds=10):
+    end = time.time() + seconds
+    while time.time() < end:
+        job = manager.get(job_id)
+        if job["state"] != "running":
+            return job
+        time.sleep(0.01)
+    raise AssertionError("the search did not finish")
+
+
+def manager(tmp_path, provider=None, **kw):
+    return pj.PickerManager(tmp_path / "picker", provider if provider is not None else w.pullback_world(), workers=1, **kw)
+
+
+@pytest.mark.unit
+class TestOptions:
+    def test_the_page_is_offered_two_recipes_and_the_few_settings_it_may_change(self, tmp_path):
+        o = manager(tmp_path).options()
+        assert [r["id"] for r in o["recipes"]] == ["beaten-down", "list"] and all(r["label"] and r["help"] for r in o["recipes"])
+        names = {s["name"]: s for s in o["settings"]}
+        assert set(names) == {"below_high", "min_market_cap", "min_avg_volume", "universe_limit", "top"}
+        assert names["below_high"]["default"] == 0.20 and names["below_high"]["scale"] == 100
+        assert names["min_market_cap"]["default"] == 2e9 and names["top"]["default"] == 15
+        assert all(s["for"] == ["beaten-down"] for s in o["settings"])        # none of them means anything for a named list
+        assert o["busy"] is False and o["latest"] is None and o["ledger_path"].endswith("picks.csv")
+
+    def test_a_manager_without_a_folder_has_no_log_to_name(self):
+        assert pj.PickerManager(None, w.pullback_world()).options()["ledger_path"] is None
+
+
+@pytest.mark.unit
+class TestSearching:
+    def test_a_list_search_checks_every_stock_named_and_shows_them_all(self, tmp_path):
+        m = manager(tmp_path)
+        job = wait_done(m, m.start("list", "GOOD OWN FLAT SHORT BAD")["id"])
+        assert job["state"] == "done" and job["error"] == ""
+        result = job["result"]
+        symbols = [r["symbol"] for r in result["rows"]]
+        assert "GOOD" in symbols and "SHORT" not in symbols             # too little history for SHORT
+        assert result["top"] == 5 and result["recipe"] == "list" and set(result["condition_titles"]) == set("abcde")
+        assert any("Checking 5 stocks" in x for x in job["messages"])
+        assert m.options()["latest"] == job["id"]
+
+    def test_a_market_search_follows_the_funnel_and_logs_its_steps(self, tmp_path):
+        m = manager(tmp_path)
+        job = wait_done(m, m.start("beaten-down")["id"])
+        assert job["state"] == "done"
+        assert "GOOD" in [r["symbol"] for r in job["result"]["rows"]]
+        assert dict((f["step"], f["count"]) for f in job["result"]["funnel"])["Stocks to look at"] == 5
+        assert any("Screening the market" in x for x in job["messages"])
+
+    def test_the_settings_the_page_sends_reach_the_search(self, tmp_path):
+        m = manager(tmp_path)
+        job = wait_done(m, m.start("beaten-down", overrides={"below_high": 0.9})["id"])
+        assert job["result"]["rows"] == [] and job["result"]["top"] == 15
+
+    def test_the_top_stocks_are_recorded_in_the_picks_log_unless_told_not_to(self, tmp_path):
+        m = manager(tmp_path)
+        job = wait_done(m, m.start("list", "GOOD BAD")["id"])
+        saved = ledger.read_picks(tmp_path / "picker" / "picks.csv")
+        assert job["recorded"] == len(saved) == len(job["result"]["rows"]) and job["ledger_path"].endswith("picks.csv")
+        quiet = wait_done(m, m.start("list", "GOOD BAD", record=False)["id"])
+        assert quiet["recorded"] == 0 and quiet["ledger_path"] is None
+        assert len(ledger.read_picks(tmp_path / "picker" / "picks.csv")) == len(saved)
+
+    def test_a_csv_of_all_the_stocks_is_ready_when_the_search_is_done(self, tmp_path):
+        m = manager(tmp_path)
+        job = wait_done(m, m.start("list", "GOOD FLAT")["id"])
+        data = m.csv(job["id"])
+        assert data.startswith("﻿rank,symbol,name".encode("utf-8")) and b"GOOD" in data
+        assert m.csv("p20990101-000000-abcd") is None
+
+    def test_symbols_that_cannot_be_used_are_reported_not_hidden(self, tmp_path):
+        m = manager(tmp_path)
+        started = m.start("list", "GOOD ../etc/passwd")
+        assert any("Skipped" in x for x in started["messages"]) and started["skipped"]
+        wait_done(m, started["id"])
+
+    def test_only_the_last_few_searches_are_kept(self, tmp_path):
+        m = manager(tmp_path, keep=2)
+        ids = [wait_done(m, m.start("list", "GOOD")["id"])["id"] for _ in range(3)]
+        assert m.get(ids[0]) is None and m.get(ids[1]) and m.get(ids[2])
+
+
+@pytest.mark.unit
+class TestOneAtATime:
+    def test_a_second_search_is_refused_until_the_first_ends(self, tmp_path):
+        release = threading.Event()
+
+        def slow(recipe, provider, settings, **kw):
+            kw["log"]("working")
+            release.wait(5)
+            return quicklook.run(recipe, provider, settings, **kw)
+
+        m = manager(tmp_path, run=slow)
+        first = m.start("list", "GOOD")
+        assert m.busy() and m.options()["busy"] is True and first["state"] == "running"
+        with pytest.raises(pj.SearchBusy, match="already running"):
+            m.start("list", "FLAT")
+        release.set()
+        assert wait_done(m, first["id"])["state"] == "done" and not m.busy()
+        assert wait_done(m, m.start("list", "FLAT")["id"])["state"] == "done"
+
+
+@pytest.mark.unit
+class TestBadRequests:
+    @pytest.mark.parametrize("args, words", [
+        (("stocks",), "Choose Beaten-down"),
+        (("list", ""), "at least one stock symbol"),
+        (("list", "!!! ???"), "at least one stock symbol"),
+        (("list", " ".join(f"S{i}" for i in range(301))), "at most 300"),
+        (("list", "A" * (pj.MAX_TEXT + 1)), "too much text"),
+        (("beaten-down", "", {"below_high": 5}), "below_high"),
+        (("beaten-down", "", {"wizard": 1}), "unknown picker setting"),
+        (("beaten-down", "", {"top": 0}), "top"),
+    ])
+    def test_the_message_is_plain_and_nothing_starts(self, tmp_path, args, words):
+        m = manager(tmp_path)
+        with pytest.raises(ValueError, match=words):
+            m.start(*args)
+        assert m.options()["latest"] is None and not m.busy()
+
+    def test_a_search_that_cannot_run_says_why_in_plain_words(self, tmp_path):
+        def refuse(*a, **k):
+            raise quicklook.PickerError("could not get S&P 500 prices from Yahoo; try again")
+
+        m = manager(tmp_path, run=refuse)
+        job = wait_done(m, m.start("beaten-down")["id"])
+        assert job["state"] == "failed" and "S&P 500 prices" in job["error"] and job["result"] is None
+
+    def test_an_unexpected_failure_shows_no_traceback(self, tmp_path):
+        def explode(*a, **k):
+            raise KeyError("secret-internal-detail")
+
+        m = manager(tmp_path, run=explode)
+        job = wait_done(m, m.start("beaten-down")["id"])
+        assert job["state"] == "failed" and "KeyError" in job["error"] and "secret-internal-detail" not in job["error"]
+
+
+# ---------------------------------------------------------------- the endpoints
+from fastapi.testclient import TestClient  # noqa: E402
+
+from tradingagents.ui import server  # noqa: E402
+
+TOKEN = "test-session-token-1234567890"
+HEADERS = {"X-Council-Token": TOKEN}
+
+
+def api(tmp_path, provider=None, **kw):
+    app = server.create_app(TOKEN, tmp_path / ".env", 8765, picker=manager(tmp_path, provider, **kw))
+    return TestClient(app, base_url="http://127.0.0.1:8765")
+
+
+@pytest.mark.unit
+class TestEndpoints:
+    def test_every_endpoint_needs_the_token(self, tmp_path):
+        c = api(tmp_path)
+        assert c.get("/api/picker/options").status_code == 401
+        assert c.post("/api/picker/run", json={"recipe": "list", "text": "GOOD"}).status_code == 401
+        assert c.get("/api/picker/jobs/p20261108-101010-abcd").status_code == 401
+        assert c.post("/api/picker/export", json={"id": "p20261108-101010-abcd"}).status_code == 401
+        assert c.get("/api/picker/options", headers=HEADERS).status_code == 200
+
+    def test_a_search_from_another_site_is_refused(self, tmp_path):
+        c = api(tmp_path)
+        r = c.post("/api/picker/run", json={"recipe": "list", "text": "GOOD"}, headers={**HEADERS, "Origin": "https://evil.example.com"})
+        assert r.status_code == 403 and c.app.state.picker.options()["latest"] is None
+
+    def test_a_search_is_started_followed_and_saved(self, tmp_path):
+        c = api(tmp_path)
+        r = c.post("/api/picker/run", headers=HEADERS, json={"recipe": "list", "text": "GOOD FLAT BAD", "settings": {}, "record": False})
+        assert r.status_code == 202 and r.json()["state"] in ("running", "done")
+        job_id = r.json()["id"]
+        wait_done(c.app.state.picker, job_id)
+        body = c.get(f"/api/picker/jobs/{job_id}", headers=HEADERS).json()
+        assert body["state"] == "done" and body["result"]["rows"] and body["result"]["rows"][0]["conditions_met"] >= 0
+        assert c.get("/api/picker/options", headers=HEADERS).json()["latest"] == job_id
+        csv = c.post("/api/picker/export", headers=HEADERS, json={"id": job_id})
+        assert csv.status_code == 200 and csv.headers["content-type"].startswith("text/csv")
+        assert "stocks.csv" in csv.headers["content-disposition"] and b"GOOD" in csv.content
+
+    def test_the_settings_are_sent_in_the_pickers_own_units(self, tmp_path):
+        c = api(tmp_path)
+        r = c.post("/api/picker/run", headers=HEADERS, json={"recipe": "beaten-down", "settings": {"below_high": 0.9}})
+        assert r.status_code == 202
+        assert wait_done(c.app.state.picker, r.json()["id"])["result"]["rows"] == []
+
+    @pytest.mark.parametrize("body, words", [
+        ({"recipe": "wizard"}, "Choose Beaten-down"),
+        ({"recipe": "list", "text": ""}, "at least one stock symbol"),
+        ({"recipe": "list", "text": "GOOD", "settings": {"below_high": 7}}, "below_high"),
+    ])
+    def test_a_bad_request_is_a_plain_422_and_starts_nothing(self, tmp_path, body, words):
+        c = api(tmp_path)
+        r = c.post("/api/picker/run", headers=HEADERS, json=body)
+        assert r.status_code == 422 and words in r.json()["detail"] and c.app.state.picker.options()["latest"] is None
+
+    @pytest.mark.parametrize("body", [
+        {"recipe": "list", "text": "GOOD", "settings": {"carry": 1}},          # not one of the settings the page may change
+        {"recipe": "list", "text": "GOOD", "settings": {"top": "many"}},
+        {"recipe": "list", "text": ["GOOD"]},
+        {"text": "GOOD"},
+    ])
+    def test_a_malformed_body_is_refused(self, tmp_path, body):
+        c = api(tmp_path)
+        assert c.post("/api/picker/run", headers=HEADERS, json=body).status_code == 422
+        assert c.app.state.picker.options()["latest"] is None
+
+    def test_a_busy_picker_answers_409_with_a_plain_sentence(self, tmp_path):
+        release = threading.Event()
+
+        def slow(recipe, provider, settings, **kw):
+            release.wait(5)
+            return quicklook.run(recipe, provider, settings, **kw)
+
+        c = api(tmp_path, run=slow)
+        assert c.post("/api/picker/run", headers=HEADERS, json={"recipe": "list", "text": "GOOD"}).status_code == 202
+        again = c.post("/api/picker/run", headers=HEADERS, json={"recipe": "list", "text": "FLAT"})
+        assert again.status_code == 409 and "already running" in again.json()["detail"]
+        release.set()
+        wait_done(c.app.state.picker, c.app.state.picker.options()["latest"])
+
+    @pytest.mark.parametrize("job_id", ["nope", "../../etc/passwd", "p20261108-101010-zzzz", "p20261108-101010-abcd"])
+    def test_an_unknown_search_is_a_404_for_both_reading_and_saving(self, tmp_path, job_id):
+        c = api(tmp_path)
+        assert c.get(f"/api/picker/jobs/{job_id}", headers=HEADERS).status_code in (404, 405)
+        r = c.post("/api/picker/export", headers=HEADERS, json={"id": job_id})
+        assert r.status_code == 404 and "no finished search" in r.json()["detail"]
+
+    def test_a_search_that_has_not_finished_cannot_be_saved(self, tmp_path):
+        release = threading.Event()
+
+        def slow(recipe, provider, settings, **kw):
+            release.wait(5)
+            return quicklook.run(recipe, provider, settings, **kw)
+
+        c = api(tmp_path, run=slow)
+        job_id = c.post("/api/picker/run", headers=HEADERS, json={"recipe": "list", "text": "GOOD"}).json()["id"]
+        assert c.post("/api/picker/export", headers=HEADERS, json={"id": job_id}).status_code == 404
+        release.set()
+        wait_done(c.app.state.picker, job_id)
+
+    def test_the_manager_is_made_only_when_first_needed(self, tmp_path, monkeypatch):
+        made, real = [], pj.PickerManager
+        monkeypatch.setattr(server.picker_jobs, "PickerManager", lambda folder: made.append(folder) or real(None, w.pullback_world()))
+        c = TestClient(server.create_app(TOKEN, tmp_path / ".env", 8765), base_url="http://127.0.0.1:8765")
+        assert c.get("/api/state", headers=HEADERS).status_code == 200 and made == []
+        assert c.get("/api/picker/options", headers=HEADERS).status_code == 200 and len(made) == 1
+        assert c.get("/api/picker/options", headers=HEADERS).status_code == 200 and len(made) == 1
+
+
+# ---------------------------------------------------------------- the page's files
+STATIC = Path(server.STATIC)
+HTML = (STATIC / "index.html").read_text(encoding="utf-8")
+SCRIPT = (STATIC / "picker.js").read_text(encoding="utf-8")
+HTML_IDS = set(re.findall(r'\bid="([^"]+)"', HTML))
+# ids that picker.js writes into the page itself, after a search
+MADE_BY_SCRIPT = {"f-results-h", "f-top", "f-clear", "f-send", "f-sendmsg", "f-save", "f-save-result", "f-save-error"}
+
+
+@pytest.mark.unit
+class TestThePage:
+    def test_the_panel_and_its_script_are_in_the_page(self):
+        assert '<script src="/static/picker.js">' in HTML and HTML.index("runs.js") < HTML.index("picker.js")     # it uses runs.js's helpers
+        for needed in ("find", "find-form", "f-recipes", "f-text", "f-file", "f-settings", "f-start", "f-record", "f-error", "f-progress", "f-results", "f-announce"):
+            assert needed in HTML_IDS, needed
+        assert HTML.index('id="find"') < HTML.index('id="run"')                     # find first, then run
+
+    def test_every_id_the_script_reaches_for_exists(self):
+        wanted = set(re.findall(r'\$\("([a-z0-9-]+)"\)', SCRIPT))
+        assert wanted - HTML_IDS - MADE_BY_SCRIPT == set()
+        for made in MADE_BY_SCRIPT - {"f-results-h"}:
+            assert f'id="{made}"' in SCRIPT, made
+
+    def test_the_save_flow_is_shared_with_the_run_panel_and_its_messages_exist(self):
+        runs = (STATIC / "runs.js").read_text(encoding="utf-8")
+        assert "async function saveFile(kind, ids, baseName, source)" in runs and 'out: "export-result", err: "export-error"' in runs
+        assert {"export-result", "export-error"} <= HTML_IDS
+        assert '"/api/picker/export"' in SCRIPT and "saveFile(" in SCRIPT
+
+    def test_no_inline_code_and_every_label_is_matched(self):
+        assert " style=" not in HTML and not re.search(r"\son[a-z]+=", HTML) and "<script>" not in HTML
+        for target in re.findall(r'<label for="([^"]+)"', HTML):
+            assert target in HTML_IDS, target
+        assert " style=" not in SCRIPT and "onclick" not in SCRIPT
+
+    def test_aria_references_point_at_real_ids(self):
+        assert "aria-labeledby" not in HTML                                          # the misspelling that screen readers ignore
+        for attr in ("aria-labelledby", "aria-describedby"):
+            for ref in re.findall(rf'{attr}="([^"]+)"', HTML):
+                for one in ref.split():
+                    assert one in HTML_IDS, (attr, one)
+
+    def test_what_the_search_found_is_always_escaped_before_it_goes_into_the_page(self):
+        # a field of a stock (r.) or of the search (j.) is put into HTML only through esc(), except whole numbers the server made
+        raw = re.findall(r"\$\{(r\.[a-z_0-9]+|j\.[a-z_]+|f\.[a-z]+)\}", SCRIPT)
+        assert set(raw) <= {"r.rank", "r.conditions_met", "f.count"}
+        for name in ("r.symbol", "r.name", "place", "titles[c]", "f[0]", "f[1]", "m)"):       # f[1] carries the data-trouble note
+            assert f"esc({name}" in SCRIPT, name
+
+    def test_the_script_does_not_hold_the_token_or_use_forbidden_calls(self, tmp_path):
+        c = api(tmp_path)
+        js = c.get("/static/picker.js")
+        assert js.status_code == 200 and "X-Council-Token" not in js.text and TOKEN not in js.text
+        assert "eval(" not in SCRIPT and "document.write" not in SCRIPT and "localStorage" not in SCRIPT
