@@ -226,6 +226,13 @@ function renderRuns() {
 // ---------------------------------------------------------------- the live view
 // What each agent says and asks for, as it happens, and each agent's report once filed. Fed by /api/runs/{id}/live.
 const liveState = {};
+// The switch above the list. Off: the live views are hidden and nothing is fetched for them; the steps and result stay.
+const liveOn = () => document.documentElement.dataset.live !== "off";
+function setLive(on) {
+  document.documentElement.dataset.live = on ? "on" : "off";
+  $("live-toggle").checked = on;
+  pref("ac-live", on ? "on" : "off");
+}
 const STATE_MARK = {waiting: ["○", "WAITING", "job-waiting"], working: ["▶", "WORKING", "job-running"], done: ["✓", "DONE", "job-done"], missing: ["–", "NO REPORT", "job-stopped"]};
 const EVENT_TAG = {thought: "THOUGHT", request: "REQUESTED", data: "RECEIVED", system: "NOTE"};
 const isOpen = (key, fallback) => (key in keepOpen ? keepOpen[key] : fallback);
@@ -331,7 +338,7 @@ async function loadLive(id) {
 }
 
 function ensureLive(j) {
-  if (j.status === "waiting") return;
+  if (j.status === "waiting" || !liveOn()) return;
   const slot = slotOf(j.id); if (!slot || slot.firstElementChild) return;
   const st = liveState[j.id], open = isOpen("viewer:" + j.id, j.status === "running");
   if (st && st.agents.length) { drawLive(j, slot); return; }
@@ -340,6 +347,7 @@ function ensureLive(j) {
 }
 
 async function liveTick() {
+  if (!liveOn()) return;
   const work = jobs.filter(j => j.status !== "waiting" && liveState[j.id] &&
     (j.status === "running" ? isOpen("viewer:" + j.id, true) : !liveState[j.id].final));
   await Promise.all(work.map(async j => {
@@ -455,6 +463,7 @@ document.addEventListener("click", e => {
   if (t.dataset.save) saveFile(t.dataset.save, [t.dataset.id], t.dataset.name);
   if (t.id === "save-all-csv") saveFile("csv", jobs.filter(j => j.status === "done").map(j => j.id), "analyses_" + (runOpts ? runOpts.today : "all"));
 });
+$("live-toggle").addEventListener("change", e => { setLive(e.target.checked); if (e.target.checked) { jobs.forEach(ensureLive); refreshRuns(); } });
 $("run-form").addEventListener("submit", submitRun);
 $("r-tickers").addEventListener("input", () => { updateParsed(); updateEstimate(); });
 $("r-date").addEventListener("input", updateDateNote);
@@ -464,6 +473,7 @@ $("r-holdings").addEventListener("change", updateHoldingsHint);
 $("r-language").addEventListener("change", () => { updateLanguage(); if (!$("r-language-other").hidden) $("r-language-other").focus(); });
 
 (async function initRuns() {
+  setLive(pref("ac-live") !== "off");                       // remembered between visits; on unless it was turned off
   updateGate();
   try { runOpts = await api("/api/run-options"); fillRunForm(); }
   catch (x) { $("run-error").textContent = "Could not load the form: " + x.message; }

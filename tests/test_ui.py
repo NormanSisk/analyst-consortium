@@ -615,6 +615,10 @@ class TestLiveAndFilesApi:
         html = (Path(server.STATIC) / "index.html").read_text(encoding="utf-8")
         js = (Path(server.STATIC) / "runs.js").read_text(encoding="utf-8")
         assert 'id="r-open"' in html and 'id="save-all-csv"' in html and 'id="export-result"' in html and 'id="export-error"' in html
+        css = (Path(server.STATIC) / "app.css").read_text(encoding="utf-8")
+        assert 'id="live-toggle"' in html and 'html[data-live="off"] .live-slot' in css       # the live view's on/off switch
+        assert 'j.status === "waiting" || !liveOn()' in js and "if (!liveOn()) return;" in js     # it stops loading and polling
+        assert 'pref("ac-live"' in js                                                          # and the choice is remembered
         for needed in ("showSaveFilePicker", "/api/export", "/live?after=", "/open-report", "data-save=", "data-open-report=", "Watch the analysts live"):
             assert needed in js
         assert "apiBlob" in (Path(server.STATIC) / "app.js").read_text(encoding="utf-8")

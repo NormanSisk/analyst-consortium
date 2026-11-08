@@ -145,6 +145,8 @@ li.st-waiting { color:var(--muted); }
 pre { white-space:pre-wrap; overflow-wrap:anywhere; border:1px solid var(--line); padding:.6rem; background:var(--bg); border-radius:.4rem; font-size:.85rem; }
 /* The live view: one collapsible block per agent, with what it said and asked for, and its report once filed */
 .live-slot { margin-top:.8rem; }
+html[data-live="off"] .live-slot { display:none; }                       /* the switch above the list */
+#live-switch { margin:.6rem 0 .8rem; }
 details.live { border-top:var(--border-w) solid var(--line); padding-top:.7rem; }
 details.live > summary, details.repd > summary { margin:0 0 .5rem; }
 details.live h4 { font-size:1.05rem; margin:1rem 0 .3rem; }
