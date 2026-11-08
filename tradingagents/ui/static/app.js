@@ -26,7 +26,10 @@ async function api(path, body) {
   const r = await fetch(path, opt);
   let data = null;
   try { data = await r.json(); } catch (_) { /* not JSON */ }
-  if (!r.ok) throw new Error((data && data.detail) || ("The request failed (HTTP " + r.status + ")."));
+  if (!r.ok) {
+    const d = data && data.detail;
+    throw new Error(typeof d === "string" && d ? d : (d ? "The server did not accept what the page sent. Reload the page and try again." : "The request failed (HTTP " + r.status + ")."));
+  }
   return data;
 }
 
@@ -86,9 +89,13 @@ async function runChecks(ids, forceLive) {
     } else {
       results = rep.results;
     }
-    return render();
+    const ok = render();
+    window.acReady = ok;
+    document.dispatchEvent(new CustomEvent("ac-checks", {detail: {ready: ok, error: false}}));      // the run form listens
+    return ok;
   } catch (e) {
     $("summary").innerHTML = `<p class="big">Could not run the checks</p><p>${esc(e.message)}</p>`;
+    document.dispatchEvent(new CustomEvent("ac-checks", {detail: {ready: false, error: true}}));
     return false;
   } finally {
     setBusy(false);
@@ -141,7 +148,7 @@ function providerChanged(userChange) {
 function costLine() {
   const n = +$("f-passes").value, usd = (0.13 + 0.0675 * (n - 1)).toFixed(2), min = (4.5 + 0.45 * (n - 1)).toFixed(0);
   $("h-cost").textContent = `About $${usd} and ${min} minutes per analysis (measured with Anthropic Haiku and Sonnet; other providers differ). ` +
-    (n === 1 ? "One pass can flip between neighbouring ratings on a borderline stock." : "The report shows the median verdict and how many passes agreed.");
+    (n === 1 ? "One pass can flip between neighboring ratings on a borderline stock." : "The report shows the median verdict and how many passes agreed.");
 }
 
 function collectUpdates() {

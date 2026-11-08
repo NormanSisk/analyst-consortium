@@ -4,23 +4,23 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="council-token" content="__SESSION_TOKEN__">
-<title>Analyst Consortium - Setup check</title>
+<title>Analyst Consortium - Run and setup</title>
 <link rel="stylesheet" href="/static/app.css">
 </head>
 <body>
-<a class="skip" href="#main">Skip to the results</a>
+<a class="skip" href="#main">Skip to the main content</a>
 <div class="layout">
 
   <aside class="side" aria-label="Summary and display options">
     <h1>Analyst Consortium</h1>
-    <p class="sub">Setup check</p>
+    <p class="sub">Run analyses and check your setup</p>
     <div class="summary" id="summary" role="status" aria-live="polite"><p class="big">Checking...</p></div>
     <div class="stack">
       <button type="button" id="recheck">Check everything again</button>
       <label class="inline"><input type="checkbox" id="live" checked><span>Include a live test of the AI models (costs a fraction of a cent)</span></label>
     </div>
     <details class="display">
-      <summary><span class="btn-like secondary">Text size and colours</span></summary>
+      <summary><span class="btn-like secondary">Text size and colors</span></summary>
       <fieldset>
         <legend>Text size</legend>
         <div class="row" id="sizes">
@@ -31,7 +31,7 @@
         </div>
       </fieldset>
       <fieldset>
-        <legend>Colours</legend>
+        <legend>Colors</legend>
         <div class="row" id="themes">
           <button type="button" class="secondary" data-theme="light" aria-pressed="true">Light</button>
           <button type="button" class="secondary" data-theme="dark" aria-pressed="false">Dark</button>
@@ -44,13 +44,97 @@
           <button type="button" class="secondary" data-bg="market" aria-pressed="true">Market</button>
           <button type="button" class="secondary" data-bg="plain" aria-pressed="false">Plain</button>
         </div>
-        <p class="hint">A soft colour wash with a faint chart. It only shows around the panels, never behind text. High contrast is always plain.</p>
+        <p class="hint">A soft color wash with a faint chart. It only shows around the panels, never behind text. High contrast is always plain.</p>
       </fieldset>
     </details>
     <p class="small">Analyst Consortium never places trades and is not financial advice. Built on <a href="https://github.com/TauricResearch/TradingAgents">TradingAgents</a> by Tauric Research (Apache-2.0).</p>
   </aside>
 
   <main id="main">
+    <section class="panel" id="run" aria-labeledby="run-h">
+      <h2 id="run-h">Run an analysis</h2>
+      <p class="hint">Each stock gets its own analysis: analysts gather data, a panel of bulls and bears debates and votes, then a trader, a risk team and a portfolio manager make the call. It never places a trade.</p>
+      <div class="notice" id="run-gate" hidden></div>
+      <form class="editor" id="run-form" novalidate>
+        <fieldset class="block">
+          <legend>What to analyze</legend>
+          <div class="grid">
+            <div class="field">
+              <label for="r-tickers">Stock symbols</label>
+              <input id="r-tickers" type="text" autocomplete="off" spellcheck="false" placeholder="NVDA MU ASML" aria-describedby="h-tickers">
+              <p class="hint" id="h-tickers">One or more, separated by spaces or commas. Stocks outside the US need their exchange ending, such as 0700.HK. Up to 10 at a time; they run one after another.</p>
+              <p class="hint" id="r-parsed" aria-live="off"></p>
+            </div>
+            <div class="field">
+              <label for="r-date">Analysis date</label>
+              <input id="r-date" type="date" aria-describedby="h-date">
+              <p class="hint" id="h-date">Today gives the fullest analysis.</p>
+              <p class="note" id="r-date-note" hidden></p>
+            </div>
+          </div>
+        </fieldset>
+
+        <fieldset class="block">
+          <legend>Analysts</legend>
+          <div id="r-analysts"></div>
+        </fieldset>
+
+        <fieldset class="block">
+          <legend>How thorough</legend>
+          <div class="grid">
+            <div class="field">
+              <label for="r-depth">Research depth</label>
+              <select id="r-depth" aria-describedby="h-depth"></select>
+              <p class="hint" id="h-depth"></p>
+            </div>
+            <div class="field">
+              <label for="r-passes">Research passes</label>
+              <select id="r-passes" aria-describedby="h-passes"></select>
+              <p class="hint" id="h-passes">The whole bull-and-bear debate is run this many times and the middle verdict is kept. For this run only; your saved setting is not changed.</p>
+            </div>
+          </div>
+        </fieldset>
+
+        <fieldset class="block">
+          <legend>The report</legend>
+          <div class="grid">
+            <div class="field">
+              <label for="r-language">Language</label>
+              <select id="r-language"></select>
+              <input id="r-language-other" type="text" autocomplete="off" spellcheck="false" placeholder="Type a language, for example Turkish" aria-label="Other language" hidden>
+            </div>
+            <div class="field">
+              <label for="r-holdings">Your holdings</label>
+              <select id="r-holdings" aria-describedby="h-holdings"></select>
+              <p class="hint" id="h-holdings"></p>
+            </div>
+          </div>
+        </fieldset>
+
+        <details class="advanced">
+          <summary><span class="btn-like secondary">More options</span><span class="hint-inline">Switch features on or off for this run</span></summary>
+          <label class="inline"><input type="checkbox" id="r-selloff"><span>Selloff rules on: weakness the whole market explains is not held against a stock.</span></label>
+          <label class="inline"><input type="checkbox" id="r-scorecard"><span>Shared scorecard on: the bull, the bear and the manager see the same facts.</span></label>
+        </details>
+
+        <p class="estimate" id="r-estimate"></p>
+        <div class="row">
+          <button type="submit" id="start" disabled>Start analysis</button>
+        </div>
+        <p class="result" id="run-result" role="status" aria-live="polite"></p>
+        <p class="error" id="run-error" role="alert"></p>
+      </form>
+
+      <h2 id="jobs-h">Your analyses</h2>
+      <p id="runs-empty" class="hint">Nothing has been run from this page yet.</p>
+      <ul class="jobs" id="runs" aria-labeledby="jobs-h"></ul>
+      <details class="older" id="runs-old" hidden>
+        <summary><span class="btn-like secondary" id="runs-old-label">Earlier analyses</span></summary>
+        <ul class="jobs" id="runs-older"></ul>
+      </details>
+      <div class="sr-only" id="run-announce" role="status" aria-live="polite"></div>
+    </section>
+
     <details class="configure" id="configure">
       <summary><span class="btn-like">Configure connections</span><span class="hint-inline">AI model, keys and optional data sources</span></summary>
       <form class="editor" id="config-form" novalidate>
@@ -116,5 +200,6 @@
   </main>
 </div>
 <script src="/static/app.js"></script>
+<script src="/static/runs.js"></script>
 </body>
 </html>

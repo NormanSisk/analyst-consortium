@@ -51,8 +51,8 @@ def dotenv(tmp_path):
     return tmp_path / ".env"
 
 
-def client(dotenv, port=8765, **kw):
-    app = server.create_app(TOKEN, dotenv, port)
+def client(dotenv, port=8765, runs=None, **kw):
+    app = server.create_app(TOKEN, dotenv, port, runs=runs)
     return TestClient(app, base_url=f"http://127.0.0.1:{port}", **kw)
 
 
@@ -252,6 +252,180 @@ class TestApi:
         assert js.status_code == 200 and "X-Council-Token" in js.text
         assert c.get("/static/app.css").status_code == 200
         assert c.get("/static/../server.py").status_code in (400, 404)
+
+
+class _HeldProc:
+    """A stand-in child that never finishes by itself and ends when it is killed."""
+
+    pid, returncode, killed = 4242, None, False
+
+    def poll(self):
+        if self.killed:
+            self.returncode = 1
+            return 1
+        return None
+
+
+@pytest.mark.unit
+class TestRunsApi:
+    """The run form's endpoints, with a queue whose children are fakes (no analysis, no network, no cost)."""
+
+    @pytest.fixture
+    def rig(self, tmp_path, monkeypatch):
+        from tradingagents.ui import runs as rn
+
+        for name in list(store.registry()):
+            monkeypatch.delenv(name, raising=False)
+        monkeypatch.setenv("TRADINGAGENTS_LLM_PROVIDER", "anthropic")
+        monkeypatch.setenv("TRADINGAGENTS_QUICK_THINK_LLM", "claude-haiku-5-5")
+        monkeypatch.setenv("TRADINGAGENTS_DEEP_THINK_LLM", "claude-sonnet-5")
+        monkeypatch.setenv("ANTHROPIC_API_KEY", KEY)
+        folder = tmp_path / "data"
+        folder.mkdir()
+        (folder / "my_book.json").write_text(json.dumps({"cash": 1000, "currency": "USD", "profile": "patient",
+                                                          "positions": [{"ticker": "NVDA", "quantity": 2}]}), encoding="utf-8")
+        monkeypatch.setattr(server, "holdings_folders", lambda cfg: [folder])
+        launches, procs = [], []
+
+        def launcher(command, env, cwd, console):
+            launches.append(command)
+            procs.append(_HeldProc())
+            return procs[-1]
+
+        manager = rn.RunManager(tmp_path / "logs", holdings=lambda: {k: v["path"] for k, v in rn.find_holdings([folder]).items()},
+                                launcher=launcher, python="python", poll_seconds=0.005, sleep=lambda s: __import__("time").sleep(0.005),
+                                killer=lambda p: setattr(p, "killed", True))
+        yield manager, launches, procs
+        manager.shutdown()
+
+    def body(self, **changes):
+        base = {"tickers": ["NVDA"], "date": server.date.today().isoformat(), "analysts": ["market", "news"],
+                "depth": 1, "passes": 5, "language": "English", "holdings": None, "selloff": True, "scorecard": True}
+        base.update(changes)
+        return base
+
+    def test_the_endpoints_need_the_token(self, dotenv, rig):
+        c = client(dotenv, runs=rig[0])
+        assert c.get("/api/run-options").status_code == 401
+        assert c.get("/api/runs").status_code == 401
+        assert c.post("/api/runs", json=self.body()).status_code == 401
+        assert c.post("/api/runs/20261108-101010-abcd/cancel").status_code == 401
+        assert rig[1] == []
+
+    def test_starting_from_another_origin_is_refused(self, dotenv, rig):
+        c = client(dotenv, runs=rig[0])
+        r = c.post("/api/runs", json=self.body(), headers={**HEADERS, "Origin": "https://evil.example.com"})
+        assert r.status_code == 403 and rig[1] == []
+
+    def test_the_options_describe_the_form_and_the_settings_in_force(self, dotenv, rig):
+        body = client(dotenv, runs=rig[0]).get("/api/run-options", headers=HEADERS).json()
+        assert body["today"] == server.date.today().isoformat() and body["max_tickers"] == 10
+        assert [a["id"] for a in body["analysts"]] == ["market", "social", "news", "fundamentals"]
+        assert [d["value"] for d in body["depths"]] == [1, 3, 5] and "English" in body["languages"]
+        assert body["defaults"]["depth"] == 1 and body["defaults"]["selloff"] is True and body["defaults"]["scorecard"] is True
+        assert body["provider"] == {"id": "anthropic", "quick": "claude-haiku-5-5", "deep": "claude-sonnet-5",
+                                    "key_env": "ANTHROPIC_API_KEY", "key_set": True, "sign_in": False}
+        assert body["costs"]["1"]["usd"] == 0.13 and body["costs"]["5"]["measured"] is True
+        assert [h["id"] for h in body["holdings"]] == ["my_book.json"] and body["holdings"][0]["positions"] == 1
+        assert KEY not in json.dumps(body)
+        assert "path" not in body["holdings"][0]                      # the page learns a name, never a path
+
+    def test_the_defaults_follow_the_saved_settings(self, dotenv, rig, monkeypatch):
+        monkeypatch.setenv("TRADINGAGENTS_RESEARCH_PASSES", "11")
+        monkeypatch.setenv("TRADINGAGENTS_MAX_DEBATE_ROUNDS", "3")
+        monkeypatch.setenv("TRADINGAGENTS_NO_SCORECARD", "1")
+        body = client(dotenv, runs=rig[0]).get("/api/run-options", headers=HEADERS).json()
+        assert body["defaults"]["passes"] == 11 and 11 in body["passes"] and body["defaults"]["depth"] == 3
+        assert body["defaults"]["scorecard"] is False
+
+    def test_a_started_analysis_is_listed_and_launched_with_the_form_choices(self, dotenv, rig):
+        manager, launches, _ = rig
+        c = client(dotenv, runs=manager)
+        r = c.post("/api/runs", headers=HEADERS, json=self.body(tickers=["nvda", "MU"], holdings="my_book.json"))
+        assert r.status_code == 202 and len(r.json()["started"]) == 2
+        end = __import__("time").time() + 5
+        while not launches and __import__("time").time() < end:
+            __import__("time").sleep(0.01)
+        listing = c.get("/api/runs", headers=HEADERS).json()["runs"]
+        assert [j["ticker"] for j in listing] == ["MU", "NVDA"] and listing[1]["status"] == "running" and listing[0]["status"] == "waiting"
+        assert listing[0]["place"] == 1 and listing[1]["progress"]["steps"] == 5
+        assert launches[0][launches[0].index("--ticker") + 1] == "NVDA" and "--portfolio" in launches[0]
+        assert listing[1]["holdings"] == "my_book.json" and "api_key" not in json.dumps(listing).lower()
+
+    def test_a_running_analysis_can_be_stopped(self, dotenv, rig):
+        manager, launches, procs = rig
+        c = client(dotenv, runs=manager)
+        job = c.post("/api/runs", headers=HEADERS, json=self.body()).json()["started"][0]
+        end = __import__("time").time() + 5
+        while not launches and __import__("time").time() < end:
+            __import__("time").sleep(0.01)
+        assert c.post(f"/api/runs/{job}/cancel", headers=HEADERS).json() == {"stopped": job}
+        end = __import__("time").time() + 5
+        while manager.get(job)["status"] != "stopped" and __import__("time").time() < end:
+            __import__("time").sleep(0.01)
+        assert manager.get(job)["status"] == "stopped" and procs[0].killed
+        assert c.post(f"/api/runs/{job}/cancel", headers=HEADERS).status_code == 404        # already over
+
+    @pytest.mark.parametrize("job_id", ["nope", "../../etc", "20261108-101010-zzzz", "20261108-101010-abcd"])
+    def test_stopping_something_that_is_not_there_is_a_404(self, dotenv, rig, job_id):
+        assert client(dotenv, runs=rig[0]).post(f"/api/runs/{job_id}/cancel", headers=HEADERS).status_code in (404, 405)
+
+    @pytest.mark.parametrize("changes, words", [
+        ({"tickers": ["../x"]}, "not a symbol"),
+        ({"tickers": []}, "at least one"),
+        ({"date": "2999-01-01"}, "future"),
+        ({"date": "soon"}, "Pick a date"),
+        ({"analysts": []}, "at least one analyst"),
+        ({"analysts": ["wizard"]}, "not recognized"),
+        ({"depth": 2}, "Shallow, Medium or Deep"),
+        ({"passes": 99}, "whole number"),
+        ({"language": "X=1\nY"}, "language"),
+        ({"holdings": "other.json"}, "not one of the files offered"),
+        ({"holdings": "C:\\Users\\x\\secrets.json"}, "not one of the files offered"),
+    ])
+    def test_a_bad_request_is_a_clear_422_and_starts_nothing(self, dotenv, rig, changes, words):
+        manager, launches, _ = rig
+        r = client(dotenv, runs=manager).post("/api/runs", headers=HEADERS, json=self.body(**changes))
+        assert r.status_code == 422 and words in r.json()["detail"]
+        assert manager.listing() == [] and launches == []
+
+    def test_a_malformed_body_is_refused_without_an_echo(self, dotenv, rig):
+        c = client(dotenv, runs=rig[0])
+        for bad in ({"tickers": "NVDA"}, {**self.body(), "depth": "deep"}, {**self.body(), "tickers": ["A"] * 50}, {}):
+            assert c.post("/api/runs", headers=HEADERS, json=bad).status_code == 422
+        assert rig[0].listing() == []
+
+    def test_no_saved_key_stops_the_start_before_anything_is_queued(self, dotenv, rig, monkeypatch):
+        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+        r = client(dotenv, runs=rig[0]).post("/api/runs", headers=HEADERS, json=self.body())
+        assert r.status_code == 422 and "No key is saved" in r.json()["detail"] and rig[0].listing() == []
+
+    def test_the_same_analysis_cannot_be_started_twice(self, dotenv, rig):
+        c = client(dotenv, runs=rig[0])
+        assert c.post("/api/runs", headers=HEADERS, json=self.body()).status_code == 202
+        again = c.post("/api/runs", headers=HEADERS, json=self.body())
+        assert again.status_code == 422 and "already waiting or running" in again.json()["detail"]
+
+    def test_the_run_scripts_and_markup_are_served_and_use_no_inline_code(self, dotenv, rig):
+        from pathlib import Path
+
+        c = client(dotenv, runs=rig[0])
+        js = c.get("/static/runs.js")
+        assert js.status_code == 200 and "/api/runs" in js.text and "X-Council-Token" not in js.text   # it reuses api() from app.js
+        html = (Path(server.STATIC) / "index.html").read_text(encoding="utf-8")
+        assert '<script src="/static/runs.js">' in html and 'id="run-form"' in html and 'id="start"' in html
+        assert " style=" not in html and not re.search(r"\son[a-z]+=", html)
+
+    def test_the_manager_is_made_only_when_first_needed_and_closed_with_the_app(self, dotenv, monkeypatch):
+        made = []
+        monkeypatch.setattr(server.run_tools, "RunManager", lambda *a, **k: made.append(1) or type("M", (), {
+            "listing": lambda s: [], "busy": lambda s: False, "shutdown": lambda s: made.append("closed")})())
+        c = client(dotenv)
+        assert c.get("/api/state", headers=HEADERS).status_code == 200 and made == []
+        assert c.get("/api/runs", headers=HEADERS).json() == {"runs": []} and made == [1]
+        with TestClient(c.app, base_url="http://127.0.0.1:8765"):
+            pass
+        assert made == [1, "closed"]
 
 
 @pytest.mark.unit

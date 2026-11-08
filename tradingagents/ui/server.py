@@ -12,11 +12,14 @@ Safe by design, because it can write keys:
 from __future__ import annotations
 
 import asyncio
+import os
 import re
 import secrets
 import socket
 import threading
 import webbrowser
+from contextlib import asynccontextmanager
+from datetime import date
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -27,6 +30,7 @@ from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
 
 import tradingagents
+from tradingagents.ui import runs as run_tools
 from tradingagents.ui import settings_store as store
 
 STATIC = Path(__file__).with_name("static")
@@ -47,6 +51,20 @@ class DoctorRequest(BaseModel):
     live_ai: bool = True
     offline: bool = False
     ids: list[str] | None = Field(default=None, max_length=80)
+
+
+class RunRequest(BaseModel):
+    """The run form, as the page sends it. ``runs.clean_request`` does the real checking."""
+
+    tickers: list[str] = Field(max_length=run_tools.MAX_TICKERS * 4)
+    date: str = Field(max_length=10)
+    analysts: list[str] = Field(max_length=8)
+    depth: int
+    passes: int
+    language: str = Field(default="English", max_length=60)
+    holdings: str | None = Field(default=None, max_length=200)
+    selloff: bool = True
+    scorecard: bool = True
 
 
 def _host_ok(host: str, port: int | None) -> bool:
@@ -83,9 +101,75 @@ def build_state(dotenv_path: Path | None = None) -> dict:
     }
 
 
-def create_app(token: str, dotenv_path: Path | None = None, port: int | None = None) -> FastAPI:
-    app = FastAPI(title="Analyst Consortium setup", docs_url=None, redoc_url=None, openapi_url=None)
+def holdings_folders(cfg: dict) -> list[Path]:
+    """Where holdings files are looked for: next to the results folder (the data folder) and in the program's home."""
+    from tradingagents.default_config import _TRADINGAGENTS_HOME
+
+    folders = [Path(cfg["results_dir"]).parent, Path(_TRADINGAGENTS_HOME)]
+    return [f for i, f in enumerate(folders) if f not in folders[:i]]
+
+
+def build_run_options(manager: run_tools.RunManager | None = None) -> dict:
+    """What the run form offers and starts with, from the settings in force right now."""
+    from tradingagents.default_config import build_default_config
+    from tradingagents.llm_clients.api_key_env import get_api_key_env
+    from tradingagents.llm_clients.openai_client import SIGNED_IN_PROVIDERS
+
+    cfg = build_default_config()
+    provider, quick, deep = (str(cfg.get(k) or "") for k in ("llm_provider", "quick_think_llm", "deep_think_llm"))
+    key_env = get_api_key_env(provider)
+    passes = int(cfg.get("research_passes") or 1)
+    depth = int(cfg.get("max_debate_rounds") or 1)
+    options = sorted({*PASSES_OPTIONS, passes})
+    books = run_tools.find_holdings(holdings_folders(cfg))
+    language = str(cfg.get("output_language") or "English")
+    env = os.environ
+    return {
+        "today": date.today().isoformat(),
+        "analysts": [{"id": k, "label": label, "help": text} for k, label, text in run_tools.ANALYSTS],
+        "depths": [{"value": v, "label": label, "help": text} for v, label, text in run_tools.DEPTHS],
+        "passes": options,
+        "costs": {str(n): run_tools.estimate(provider, quick, deep, n) for n in options},
+        "languages": list(run_tools.LANGUAGES),
+        "holdings": [{"id": name, "positions": b["positions"], "cash": b["cash"], "currency": b["currency"],
+                      "profile": b["profile"], "folder": b["folder"]} for name, b in books.items()],
+        "holdings_folders": [str(f) for f in holdings_folders(cfg)],
+        "defaults": {"depth": depth if depth in run_tools.DEPTH_VALUES else 1, "passes": passes, "language": language,
+                     "selloff": env.get("TRADINGAGENTS_NO_SELLOFF_RULES") != "1",
+                     "scorecard": env.get("TRADINGAGENTS_NO_SCORECARD") != "1"},
+        "provider": {"id": provider, "quick": quick, "deep": deep, "key_env": key_env,
+                     "key_set": bool(key_env and env.get(key_env)) or (key_env is None),
+                     "sign_in": provider in SIGNED_IN_PROVIDERS},
+        "max_tickers": run_tools.MAX_TICKERS,
+        "busy": bool(manager and manager.busy()),
+    }
+
+
+def create_app(token: str, dotenv_path: Path | None = None, port: int | None = None,
+               runs: run_tools.RunManager | None = None) -> FastAPI:
+    """The setup and run screen. ``runs`` is the queue of analyses; by default one is made on first use."""
+
+    @asynccontextmanager
+    async def lifespan(_app: FastAPI):
+        yield
+        if _app.state.runs is not None:
+            await run_in_threadpool(_app.state.runs.shutdown)       # end a running analysis when the server closes
+
+    app = FastAPI(title="Analyst Consortium", docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
     app.state.doctor_lock = asyncio.Lock()
+    app.state.runs = runs
+    app.state.runs_lock = threading.Lock()
+
+    def manager() -> run_tools.RunManager:
+        with app.state.runs_lock:
+            if app.state.runs is None:
+                from tradingagents.default_config import build_default_config
+
+                cfg = build_default_config()
+                folders = holdings_folders(cfg)
+                app.state.runs = run_tools.RunManager(
+                    cfg["results_dir"], holdings=lambda: {k: v["path"] for k, v in run_tools.find_holdings(folders).items()})
+            return app.state.runs
 
     @app.middleware("http")
     async def guard(request: Request, call_next):
@@ -131,6 +215,42 @@ def create_app(token: str, dotenv_path: Path | None = None, port: int | None = N
                 offline=body.offline, live_ai=body.live_ai, ids=body.ids))
         return report.to_dict()
 
+    @app.get("/api/run-options")
+    async def run_options() -> dict:
+        return await run_in_threadpool(lambda: build_run_options(app.state.runs))
+
+    @app.get("/api/runs")
+    async def list_runs() -> dict:
+        return {"runs": await run_in_threadpool(manager().listing)}
+
+    @app.post("/api/runs", status_code=202)
+    async def start_runs(body: RunRequest):
+        def start():
+            options = build_run_options(app.state.runs)
+            provider = options["provider"]
+            if provider["key_env"] and not provider["key_set"]:
+                raise run_tools.RequestError(
+                    f"No key is saved for {provider['id']} yet. Open Configure connections, paste the key and save.")
+            if not (provider["quick"] and provider["deep"]):
+                raise run_tools.RequestError("Choose a quick model and a deep model under Configure connections first.")
+            from tradingagents.default_config import build_default_config
+
+            books = {k: v["path"] for k, v in run_tools.find_holdings(holdings_folders(build_default_config())).items()}
+            request = run_tools.clean_request(body.model_dump(), today=date.today(), holdings=books)
+            return manager().submit(request, provider["id"], provider["quick"], provider["deep"])
+
+        try:
+            made = await run_in_threadpool(start)
+        except run_tools.RequestError as exc:
+            return JSONResponse({"detail": str(exc)}, status_code=422)
+        return {"started": [job.id for job in made]}
+
+    @app.post("/api/runs/{job_id}/cancel")
+    async def cancel_run(job_id: str):
+        if not run_tools.JOB_ID.fullmatch(job_id) or not await run_in_threadpool(manager().cancel, job_id):
+            return JSONResponse({"detail": "That analysis is not waiting or running."}, status_code=404)
+        return {"stopped": job_id}
+
     app.mount("/static", StaticFiles(directory=str(STATIC)), name="static")
     return app
 
@@ -149,7 +269,7 @@ def run_server(port: int | None = None, open_browser: bool = True, dotenv_path: 
     port = find_free_port(port or DEFAULT_PORT)
     app = create_app(secrets.token_urlsafe(24), dotenv_path, port)
     url = f"http://{HOST}:{port}/"
-    print(f"Analyst Consortium setup screen: {url}\nPress Ctrl+C to stop. It answers only on this computer.")
+    print(f"Analyst Consortium: {url}\nPress Ctrl+C to stop. It answers only on this computer.")
     if open_browser:
         threading.Timer(1.0, lambda: webbrowser.open(url)).start()
     uvicorn.run(app, host=HOST, port=port, log_level="warning", access_log=False)
