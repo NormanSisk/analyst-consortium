@@ -161,7 +161,7 @@ Compared with commit `c454491` (TradingAgents v0.7.1). A file that is not listed
 - `tests/test_cli_headless.py` (+1 -1)
 - `tests/test_graph_end_to_end.py` (+52 -3)
 - `tests/test_memory_log.py` (+2 -2)
-- `tests/test_report_html.py` (+63 -16)
+- `tests/test_report_html.py` (+79 -16)
 - `tests/test_tool_date_enforcement.py` (+5 -0)
 - `tradingagents/agents/analysts/fundamentals_analyst.py` (+33 -3)
 - `tradingagents/agents/analysts/market_analyst.py` (+21 -4)
@@ -187,12 +187,12 @@ Compared with commit `c454491` (TradingAgents v0.7.1). A file that is not listed
 - `tradingagents/graph/setup.py` (+34 -14)
 - `tradingagents/graph/trading_graph.py` (+19 -1)
 - `tradingagents/portfolio.py` (+34 -1)
-- `tradingagents/report_html.py` (+35 -20)
+- `tradingagents/report_html.py` (+53 -19)
 - `tradingagents/reporting.py` (+5 -0)
 
-#### Files we added (109)
+#### Files we added (113)
 
-**Tests** (42)
+**Tests** (43)
 
 - `tests/fixtures/scorecard_nvda.json`
 - `tests/picker_world.py`
@@ -208,6 +208,7 @@ Compared with commit `c454491` (TradingAgents v0.7.1). A file that is not listed
 - `tests/test_launcher.py`
 - `tests/test_live_events.py`
 - `tests/test_local_accuracy_changes.py`
+- `tests/test_logo.py`
 - `tests/test_market_context.py`
 - `tests/test_ownership.py`
 - `tests/test_picker.py`
@@ -311,11 +312,14 @@ Compared with commit `c454491` (TradingAgents v0.7.1). A file that is not listed
 - `cli/rerun.py`
 - `cli/usage_log.py`
 
-**Scripts, icon and design notes** (5)
+**Scripts, icon and design notes** (8)
 
 - `docs/mockups/setup-screen.html`
 - `scripts/list_changes.py`
 - `scripts/make_app_icon.py`
+- `scripts/make_logo_emblem.py`
+- `tradingagents/assets/analyst-consortium-emblem.svg`
+- `tradingagents/assets/analyst-consortium-logo.svg`
 - `tradingagents/assets/app-icon.ico`
 - `tradingagents/assets/app-icon.png`
 
