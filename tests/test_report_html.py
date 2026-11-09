@@ -142,7 +142,8 @@ def test_the_page_heading_is_the_ticker_and_its_rating(tmp_path):
 def test_the_header_bears_the_programs_own_name_and_says_what_it_is_built_on(tmp_path):
     page = _html(tmp_path)
     header = page[page.index("<header"):page.index("</header>")]
-    assert '<p class="brand">Analyst Consortium</p>' in header
+    # the symbol of the logo to the left of the typed name, both inside the one brand line
+    assert re.search(r'<p class="brand"><svg class="emblem"[^>]*aria-hidden="true"[^>]*>.*?</svg><span>Analyst Consortium</span></p>', header, re.DOTALL)
     assert re.search(r'<p class="built-on">Built on <a href="https://github.com/TauricResearch/TradingAgents"[^>]*>TradingAgents</a></p>', header)
     assert header.index('class="brand"') < header.index('class="built-on"') < header.index("<h1")      # the name leads, then the ticker
     assert "Analyst Consortium report</title>" in page and "TradingAgents report" not in page
@@ -152,9 +153,24 @@ def test_the_header_bears_the_programs_own_name_and_says_what_it_is_built_on(tmp
 def test_the_makers_logo_and_name_are_not_in_the_header_and_the_page_draws_no_pictures(tmp_path):
     page = _html(tmp_path)
     header = page[page.index("<header"):page.index("</header>")]
-    assert "<svg" not in page and "tauric.ai" not in page                      # their logo is their brand, not ours
+    assert page.count("<svg") == 1 and '<svg class="emblem"' in header and "<img" not in page          # only our own symbol, drawn in the page
+    assert "tauric.ai" not in page and "tauric-logo" not in page                                        # their logo is their brand, not ours
     assert "Tauric" not in re.sub(r"<[^>]+>", "", header)                      # the name a reader sees (the link may still point at their repository)
-    assert "logo" not in header.lower()
+    assert "logo" not in re.sub(r"<svg.*?</svg>", "", header, flags=re.DOTALL).lower()          # apart from our own drawing, no mention of a logo
+
+
+@pytest.mark.unit
+def test_the_symbol_in_the_header_is_inert_small_and_shown_on_white_in_a_dark_page(tmp_path):
+    page = _html(tmp_path)
+    svg = page[page.index('<svg class="emblem"'):page.index("</svg>") + len("</svg>")]
+    tags = set(re.findall(r"<\s*([a-zA-Z][\w:-]*)", svg))
+    assert tags <= {"svg", "defs", "linearGradient", "stop", "filter", "feDropShadow", "g", "path", "line", "rect", "circle", "polygon"}, tags
+    assert not re.search(r"\son\w+\s*=|href|<script|<!entity|<!doctype|@import|javascript:|<text|<image|<use", svg, re.IGNORECASE)
+    assert all(ref.startswith("#") for ref in re.findall(r"url\(([^)]*)\)", svg))               # it points only at its own gradients and filters
+    assert "<!--" not in svg and len(svg) < 12_000 and 'aria-hidden="true"' in svg
+    css = page[page.index("<style>"):page.index("</style>")]
+    dark = css[css.index("@media (prefers-color-scheme: dark)", css.index(".masthead .brand .emblem")):]
+    assert ".masthead .brand .emblem { background: #fff;" in dark                                # navy lines need a white chip on a dark page
 
 
 @pytest.mark.unit

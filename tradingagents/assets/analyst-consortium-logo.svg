@@ -1,0 +1,166 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="170 135 490 625" width="490" height="625">
+  <defs>
+    <!-- Bullish Green Candlestick Gradient -->
+    <linearGradient id="greenCandleGrad" x1="0%" y1="100%" x2="0%" y2="0%">
+      <stop offset="0%" stop-color="#059669" />
+      <stop offset="100%" stop-color="#10B981" />
+    </linearGradient>
+
+    <!-- Bearish Red Candlestick Gradient -->
+    <linearGradient id="redCandleGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#F87171" />
+      <stop offset="100%" stop-color="#DC2626" />
+    </linearGradient>
+
+    <!-- Upward Trendline Gradient (Green) -->
+    <linearGradient id="greenTrend" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#10B981" />
+      <stop offset="100%" stop-color="#00E676" />
+    </linearGradient>
+
+    <!-- Downward Trendline Gradient (Red) -->
+    <linearGradient id="redTrend" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#EF4444" />
+      <stop offset="100%" stop-color="#B91C1C" />
+    </linearGradient>
+
+    <!-- Glow & Shadow Filters -->
+    <filter id="candleShadow" x="-20%" y="-10%" width="140%" height="120%">
+      <feDropShadow dx="0" dy="5" stdDeviation="6" flood-color="#0F172A" flood-opacity="0.12" />
+    </filter>
+
+    <filter id="glowGreen" x="-25%" y="-25%" width="150%" height="150%">
+      <feDropShadow dx="0" dy="2" stdDeviation="6" flood-color="#10B981" flood-opacity="0.45" />
+    </filter>
+
+    <filter id="glowRed" x="-25%" y="-25%" width="150%" height="150%">
+      <feDropShadow dx="0" dy="2" stdDeviation="6" flood-color="#EF4444" flood-opacity="0.45" />
+    </filter>
+  </defs>
+
+  <!-- Main Symbol Group (Transparent Background, No Enclosing Canvas Box) -->
+  <g id="logo-emblem" transform="translate(0, -10)">
+
+    <!-- ==================== AI CIRCUIT PATHWAYS & BUS ENCLOSURE ==================== -->
+    <g id="circuit-traces" fill="none" stroke-linecap="round" stroke-linejoin="round">
+      <!-- Left upward circuit trace (Green) -->
+      <path d="M 215 470 L 260 515 L 305 515" stroke="#10B981" stroke-width="5" opacity="0.75" />
+      <path d="M 260 515 L 260 545" stroke="#10B981" stroke-width="4" opacity="0.6" />
+
+      <!-- Center pullback circuit trace (Red) -->
+      <path d="M 365 425 L 365 520 L 415 550" stroke="#EF4444" stroke-width="5" opacity="0.75" />
+
+      <!-- Bottom & Right AI data enclosure (Navy & Green) -->
+      <path d="M 415 550 L 530 550 A 55 55 0 0 0 585 495 L 585 435" stroke="#0F172A" stroke-width="12" opacity="0.85" />
+      <path d="M 440 575 L 530 575 A 80 80 0 0 0 610 495 L 610 365" stroke="#10B981" stroke-width="8" opacity="0.9" />
+
+      <!-- Horizontal data buses -->
+      <path d="M 525 395 L 570 395" stroke="#0F172A" stroke-width="6" opacity="0.7" />
+      <path d="M 525 435 L 560 435" stroke="#0F172A" stroke-width="6" opacity="0.7" />
+    </g>
+
+    <!-- Circuit Connection Nodes -->
+    <g id="circuit-nodes">
+      <circle cx="305" cy="515" r="6" fill="#10B981" />
+      <circle cx="260" cy="545" r="5" fill="#10B981" />
+      <circle cx="365" cy="425" r="6" fill="#EF4444" />
+      <circle cx="570" cy="395" r="7" fill="#0F172A" />
+      <circle cx="560" cy="435" r="7" fill="#0F172A" />
+      <circle cx="585" cy="435" r="8" fill="#0F172A" />
+      <circle cx="610" cy="365" r="9" fill="#10B981" />
+    </g>
+
+    <!-- ==================== CANDLESTICKS ==================== -->
+    <g id="candlesticks" filter="url(#candleShadow)">
+
+      <!-- PHASE 1: FIRST UPWARD TREND (GREEN CANDLESTICKS) -->
+      <line x1="215" y1="375" x2="215" y2="470" stroke="#059669" stroke-width="4.5" stroke-linecap="round" />
+      <rect x="199" y="395" width="32" height="60" rx="5" fill="url(#greenCandleGrad)" stroke="#047857" stroke-width="1.5" />
+
+      <line x1="265" y1="330" x2="265" y2="445" stroke="#059669" stroke-width="4.5" stroke-linecap="round" />
+      <rect x="249" y="350" width="32" height="75" rx="5" fill="url(#greenCandleGrad)" stroke="#047857" stroke-width="1.5" />
+
+      <line x1="315" y1="290" x2="315" y2="415" stroke="#059669" stroke-width="4.5" stroke-linecap="round" />
+      <rect x="299" y="315" width="32" height="80" rx="5" fill="url(#greenCandleGrad)" stroke="#047857" stroke-width="1.5" />
+
+      <!-- PHASE 2: DOWNWARD TREND / PULLBACK (RED CANDLESTICKS) -->
+      <line x1="365" y1="310" x2="365" y2="435" stroke="#DC2626" stroke-width="4.5" stroke-linecap="round" />
+      <rect x="349" y="335" width="32" height="80" rx="5" fill="url(#redCandleGrad)" stroke="#B91C1C" stroke-width="1.5" />
+
+      <line x1="415" y1="340" x2="415" y2="465" stroke="#DC2626" stroke-width="4.5" stroke-linecap="round" />
+      <rect x="399" y="365" width="32" height="80" rx="5" fill="url(#redCandleGrad)" stroke="#B91C1C" stroke-width="1.5" />
+
+      <!-- PHASE 3: FINAL UPWARD BREAKOUT SURGE (GREEN CANDLESTICKS) -->
+      <line x1="465" y1="275" x2="465" y2="410" stroke="#059669" stroke-width="4.5" stroke-linecap="round" />
+      <rect x="449" y="300" width="32" height="85" rx="5" fill="url(#greenCandleGrad)" stroke="#047857" stroke-width="1.5" />
+
+      <line x1="515" y1="220" x2="515" y2="375" stroke="#059669" stroke-width="4.5" stroke-linecap="round" />
+      <rect x="499" y="245" width="32" height="105" rx="5" fill="url(#greenCandleGrad)" stroke="#047857" stroke-width="1.5" />
+
+      <line x1="565" y1="165" x2="565" y2="340" stroke="#059669" stroke-width="4.5" stroke-linecap="round" />
+      <rect x="549" y="190" width="32" height="125" rx="5" fill="url(#greenCandleGrad)" stroke="#047857" stroke-width="1.5" />
+    </g>
+
+    <!-- ==================== DIRECTIONAL COLOR-COORDINATED TRENDLINE ==================== -->
+    <g id="trendlines">
+      <!-- Ambient Glow Behind Trendlines -->
+      <path d="M 190 460 L 315 365"
+            fill="none" stroke="#10B981" stroke-width="24" stroke-linecap="round" opacity="0.25" />
+      <path d="M 315 365 L 415 440"
+            fill="none" stroke="#EF4444" stroke-width="24" stroke-linecap="round" opacity="0.25" />
+      <path d="M 415 440 L 515 320 L 610 195"
+            fill="none" stroke="#10B981" stroke-width="24" stroke-linecap="round" opacity="0.25" />
+
+      <!-- 1. INITIAL UPWARD TRENDLINE (GREEN) -->
+      <path d="M 190 460 L 315 365"
+            fill="none" stroke="url(#greenTrend)" stroke-width="14" stroke-linecap="round" filter="url(#glowGreen)" />
+      <circle cx="190" cy="460" r="9" fill="#10B981" stroke="#FFFFFF" stroke-width="3" />
+
+      <!-- 2. DOWNWARD TRENDLINE / PULLBACK (RED) -->
+      <path d="M 315 365 L 415 440"
+            fill="none" stroke="url(#redTrend)" stroke-width="14" stroke-linecap="round" filter="url(#glowRed)" />
+      <circle cx="315" cy="365" r="11" fill="#0F172A" stroke="#FFFFFF" stroke-width="3.5" />
+      <circle cx="315" cy="365" r="5" fill="#EF4444" />
+
+      <!-- 3. FINAL MAJOR UPWARD BREAKOUT TRENDLINE (GREEN) -->
+      <path d="M 415 440 L 515 320 L 605 200"
+            fill="none" stroke="url(#greenTrend)" stroke-width="14" stroke-linecap="round" filter="url(#glowGreen)" />
+
+      <circle cx="415" cy="440" r="13" fill="#0F172A" stroke="#FFFFFF" stroke-width="4" />
+      <circle cx="415" cy="440" r="6" fill="#10B981" />
+      <circle cx="515" cy="320" r="8" fill="#10B981" stroke="#FFFFFF" stroke-width="3" />
+
+      <!-- Dynamic Green Arrowhead Surging Top-Right -->
+      <g transform="translate(615, 188) rotate(-50)">
+        <polygon points="0,-20 40,0 0,20 10,0" fill="url(#greenTrend)" stroke="#FFFFFF" stroke-width="3" filter="url(#glowGreen)" />
+      </g>
+    </g>
+
+  </g>
+
+  <!-- ==================== BRAND TYPOGRAPHY ==================== -->
+  <g id="brand-typography" text-anchor="middle">
+    <!-- Centered around x=400 which is the visual midpoint -->
+    <text x="400" y="650"
+          font-family="system-ui, -apple-system, 'SF Pro Display', 'Inter', 'Segoe UI', Roboto, Helvetica, sans-serif"
+          font-size="56"
+          font-weight="900"
+          letter-spacing="7"
+          fill="#0F172A">ANALYST</text>
+
+    <text x="400" y="705"
+          font-family="system-ui, -apple-system, 'SF Pro Text', 'Inter', 'Segoe UI', Roboto, Helvetica, sans-serif"
+          font-size="28"
+          font-weight="700"
+          letter-spacing="15"
+          fill="#475569">CONSORTIUM</text>
+
+    <rect x="285" y="730" width="230" height="26" rx="13" fill="#E2E8F0" />
+    <text x="400" y="747"
+          font-family="system-ui, -apple-system, 'Inter', sans-serif"
+          font-size="11.5"
+          font-weight="800"
+          letter-spacing="3.5"
+          fill="#0369A1">AI STOCK INTELLIGENCE</text>
+  </g>
+</svg>

@@ -78,13 +78,14 @@ We also fixed some existing Yahoo data behavior (see "Upstream files we modified
 
 `tradingagents ui` starts a small web server that answers only on your own computer, and opens it in your browser. It is Python (FastAPI) serving plain HTML, CSS and JavaScript from `tradingagents/ui/static/`.
 
-- **Setup check and settings.** Runs `tradingagents doctor` (below) and edits the settings. Keys are written to your `.env` and are never sent back to the page; it learns only whether one is set.
+- **Setup check and settings.** Runs `tradingagents doctor` (below) and edits the settings. It is the first thing in the main column, behind a labeled rollup button ("Setup and settings"): open until setup is complete, closed afterward but always one click away. Keys are written to your `.env` and are never sent back to the page; it learns only whether one is set.
 - **Run form.** Start analyses for up to ten stocks, choose analysts, depth, research passes, investing style and language, see a cost estimate first, follow progress, and stop one.
 - **Live view.** What each analyst says and asks for while it works, with an on/off switch.
 - **Reports.** The HTML report opens when a run finishes, and any finished analysis can be saved as CSV or PDF. Browsers that offer a Save As window let you choose the place; others download the file. (PDF needs Microsoft Edge or Google Chrome installed; it is made from the HTML report.)
 - **Designed to be readable.** Every status is a symbol and a word (never color alone), text and background pairs checked for WCAG AAA contrast (at least 7:1), three color themes including high contrast, two text sizes (the last choice is remembered), and no sideways scrolling.
 - **Safe by design.** It listens on `127.0.0.1` only, checks the `Host` and `Origin` of every request, requires a random per-session token on every call, and sends a strict content-security policy, so other web sites open in your browser cannot reach it.
-- **A small promotion.** The side column has a "From the maker of this app" block with a button linking to AeroPlanimetry (https://aeroplanimetry.com), a mapping website owned by the author. It is one marked block in `tradingagents/ui/static/index.html`; delete it if you do not want it.
+- **A small promotion.** The side column has a "From the maker of this app" block, in that website's dark blue with white text, with a button linking to AeroPlanimetry (https://aeroplanimetry.com), a mapping website owned by the author. It is one marked block in `tradingagents/ui/static/index.html`; delete it if you do not want it.
+- **The logo.** The symbol of the Analyst Consortium logo (`tradingagents/assets/analyst-consortium-logo.svg` is the author's full logo; `tradingagents/assets/analyst-consortium-emblem.svg` is the symbol alone, made from it by `scripts/make_logo_emblem.py`) appears to the left of the name in the page's heading and in the header of every report. On the dark themes it sits on a white chip, because the symbol has dark navy lines.
 - **One copy at a time, and a shortcut.** Starting it again while it is open just opens the page that is running. `tradingagents shortcut` puts a launcher on your desktop (Windows `.lnk`, macOS `.command`, Linux `.desktop`). The macOS and Linux launchers are written from those systems' documentation and have not been tried on them. The app icon is drawn by `scripts/make_app_icon.py` with no outside artwork.
 
 ### 4. The stock picker
@@ -107,7 +108,7 @@ Each result is a card with the five conditions shown as PASS, FAIL or UNKNOWN an
 
 ### 7. Reports
 
-The HTML report (and the PDF made from it) carries the name Analyst Consortium with a "Built on TradingAgents" line, and credits Tauric Research by name and link in its footer. The original logo is not used. Print layout keeps every heading, and every line that introduces a list or table, on the same page as what follows it, and keeps table rows and code blocks whole.
+The HTML report (and the PDF made from it) carries the symbol of the Analyst Consortium logo and the name, with a "Built on TradingAgents" line, and credits Tauric Research by name and link in its footer. The symbol is drawn inside the page, so a report is still one self-contained file that loads nothing. The original project's logo is not used. Print layout keeps every heading, and every line that introduces a list or table, on the same page as what follows it, and keeps table rows and code blocks whole.
 
 ## Upstream files we modified
 

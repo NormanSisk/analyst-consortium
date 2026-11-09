@@ -6,8 +6,10 @@ forbids any fetch. Report text is rendered as CommonMark with raw HTML and image
 off, so nothing a model wrote can inject markup or load a remote asset.
 """
 
+import re
 from datetime import datetime
 from html import escape
+from importlib.resources import files
 
 from markdown_it import MarkdownIt
 
@@ -17,11 +19,24 @@ from tradingagents.reporting import analyst_names
 # Ratings by direction, so the page can show which way the call leans.
 _TONE = {"Buy": "up", "Overweight": "up", "Hold": "level", "Underweight": "down", "Sell": "down"}
 
-# The report carries this program's own name (Analyst Consortium). TradingAgents and its maker are credited by name and
-# link, as the Apache-2.0 license asks of a derived work, but their logo is not used: it is their brand, not ours.
+# The report carries this program's own name (Analyst Consortium) and the symbol of its logo. TradingAgents and its maker are
+# credited by name and link, as the Apache-2.0 license asks of a derived work, but their logo is not used: it is their brand.
 _PRODUCT = "Analyst Consortium"
 _ORG = "https://github.com/TauricResearch"
 _PROJECT = f"{_ORG}/TradingAgents"
+
+
+def _emblem() -> str:
+    """The symbol of the Analyst Consortium logo, drawn in the page so that nothing is fetched. The name is written beside it, so
+    the picture is hidden from screen readers; comments are dropped to keep the page small."""
+    text = files("tradingagents").joinpath("assets/analyst-consortium-emblem.svg").read_text(encoding="utf-8")
+    text = re.sub(r"<!--.*?-->", "", text, flags=re.DOTALL).strip()
+    view_box = re.search(r'viewBox="([^"]+)"', text).group(1)
+    return re.sub(r"<svg\b[^>]*>", f'<svg class="emblem" xmlns="http://www.w3.org/2000/svg" viewBox="{view_box}" aria-hidden="true" focusable="false">',
+                  text, count=1)
+
+
+_EMBLEM = _emblem()
 
 _CSS = """
 :root {
@@ -52,9 +67,13 @@ a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .masthead { padding-bottom: 1.75rem; border-bottom: 1px solid var(--rule); }
 /* The program's name leads at the top left, where readers look for it, with one quiet
    line under it saying what it is built on. */
-.masthead .brand { margin: 0; font: 600 1.15rem/1.3 var(--sans); letter-spacing: 0.01em; }
-.masthead .built-on { margin: 0.15rem 0 2.25rem; font: 0.8rem/1.4 var(--sans); color: var(--muted); }
+.masthead .brand { margin: 0; display: flex; align-items: center; gap: 0.7rem; font: 600 1.3rem/1.2 var(--sans); letter-spacing: 0.01em; }
+.masthead .brand .emblem { height: 3.2rem; width: auto; flex: none; border-radius: 0.4rem; }
+.masthead .built-on { margin: 0.4rem 0 2.25rem; font: 0.8rem/1.4 var(--sans); color: var(--muted); }
 .masthead .built-on a { color: inherit; }
+@media (prefers-color-scheme: dark) {
+  .masthead .brand .emblem { background: #fff; padding: 0.25rem; }     /* the symbol has dark navy lines: a white chip on a dark page */
+}
 .masthead h1 {
   margin: 0; font: 600 2.6rem/1.1 var(--sans); letter-spacing: -0.02em;
   display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.2em 0.5em;
@@ -302,7 +321,7 @@ def render_report(ticker: str, final_state: dict, settings: dict | None, parts) 
 <body>
 <div class="page" id="top">
 <header class="masthead">
-<p class="brand">{_PRODUCT}</p>
+<p class="brand">{_EMBLEM}<span>{_PRODUCT}</span></p>
 <p class="built-on">Built on <a href="{_PROJECT}" rel="noopener">TradingAgents</a></p>
 <h1>{title}</h1>
 <p class="date">{escape(f"Analysis of {date}" if date else "Analysis")}</p>

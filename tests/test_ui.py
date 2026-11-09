@@ -269,6 +269,50 @@ class TestApi:
         assert "${c.needs_setup} ${needWord(c.needs_setup)} setup" in js and 'attention + " " + needWord(attention) + " attention"' in js
         assert "need setup, " not in js and '" need attention"' not in js                  # the fixed wording is never written out
 
+    def test_setup_is_at_the_top_behind_a_labeled_rollup_that_starts_open(self):
+        from pathlib import Path
+        html = (Path(server.STATIC) / "index.html").read_text(encoding="utf-8")
+        js = (Path(server.STATIC) / "app.js").read_text(encoding="utf-8")
+        details = re.search(r'<details class="configure" id="configure"( open)?>\s*<summary><span class="btn-like">(.*?)</span>', html, re.DOTALL)
+        assert details.group(1) == " open" and details.group(2) == "Setup and settings"        # unrolled until setup is done; the label says what it is
+        main = html[html.index('<main id="main">'):]
+        assert main.index('id="configure"') < main.index('id="find"') < main.index('id="run"')   # first thing in the main column
+        block = main[main.index('id="configure"'):main.index('id="find"')]
+        assert 'id="config-form"' in block and 'id="groups"' in block and block.index("</form>") < block.index('id="groups"')    # the checks roll up with it
+        assert html.count('id="groups"') == 1 and "Configure connections" not in html
+        assert '$("configure").open = !ready;' in js                                              # closed once everything works, open while it does not
+        for name in ("runs.js", "app.js"):
+            assert "Configure connections" not in (Path(server.STATIC) / name).read_text(encoding="utf-8")
+        assert "Configure connections" not in Path(server.__file__).read_text(encoding="utf-8")
+
+    def test_the_symbol_of_the_logo_is_served_as_an_image_without_the_session_token(self, dotenv):
+        from pathlib import Path
+        answer = client(dotenv).get("/logo-emblem.svg")
+        emblem = (Path(server.ASSETS) / "analyst-consortium-emblem.svg").read_bytes()
+        assert answer.status_code == 200 and answer.headers["content-type"].startswith("image/svg+xml")
+        assert answer.content == emblem and b"<text" not in answer.content
+        assert "img-src 'self'" in answer.headers["content-security-policy"]                      # the page's own policy still applies
+
+    def test_the_promotion_uses_the_colors_of_the_website_it_points_to(self):
+        from pathlib import Path
+        css = (Path(server.STATIC) / "app.css").read_text(encoding="utf-8")
+        rule = re.search(r"\.promo \{([^}]*)\}", css).group(1)
+        assert "background:#16213e" in rule and "color:#ffffff" in rule and "border:var(--border-w) solid #2980b9" in rule
+
+        def luminance(hex_color):
+            channels = [int(hex_color[i:i + 2], 16) / 255 for i in (1, 3, 5)]
+            lin = [c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4 for c in channels]
+            return 0.2126 * lin[0] + 0.7152 * lin[1] + 0.0722 * lin[2]
+
+        def contrast(a, b):
+            hi, lo = sorted((luminance(a), luminance(b)), reverse=True)
+            return (hi + 0.05) / (lo + 0.05)
+
+        assert contrast("#ffffff", "#16213e") >= 9                                                # the page's own readability rule
+        assert ".promo .hint { margin:.5rem 0 0; color:#ffffff; }" in css and ".promo-label {" in css
+        assert ".promo a.btn-like { background:#ffffff; color:#16213e;" in css and contrast("#16213e", "#ffffff") >= 9
+        assert 'html[data-theme="contrast"] .promo { border-color:#ffffff; }' in css
+
     def test_the_promotion_is_a_plain_link_that_opens_safely_and_can_be_deleted_as_one_block(self):
         from pathlib import Path
         html = (Path(server.STATIC) / "index.html").read_text(encoding="utf-8")

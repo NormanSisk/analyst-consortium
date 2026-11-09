@@ -85,8 +85,8 @@ function updateGate() {
   if (!runOpts) { msg = "LOADING: the form is loading."; ok = false; }
   else if (setupError) { msg = "NOT KNOWN: the setup check could not run, so it is not known whether you are ready. See the left column."; ok = false; }
   else if (setupReady === null) { msg = "CHECKING: your setup is being checked first. This takes a few seconds."; ok = false; }
-  else if (setupReady === false) { msg = "NOT READY: something marked REQUIRED needs fixing first. Open Configure connections below, fix the items marked NEEDS SETUP or NOT WORKING, then come back."; ok = false; }
-  else if (runOpts.provider.key_env && !runOpts.provider.key_set) { msg = "NOT READY: no key is saved for " + provName() + ". Open Configure connections below, paste the key and save."; ok = false; }
+  else if (setupReady === false) { msg = "NOT READY: something marked REQUIRED needs fixing first. Open Setup and settings at the top of the page, fix the items marked NEEDS SETUP or NOT WORKING, then come back."; ok = false; }
+  else if (runOpts.provider.key_env && !runOpts.provider.key_set) { msg = "NOT READY: no key is saved for " + provName() + ". Open Setup and settings at the top of the page, paste the key and save."; ok = false; }
   gate.hidden = !msg;
   gate.innerHTML = esc(msg) + (setupReady === false || (runOpts && runOpts.provider.key_env && !runOpts.provider.key_set) ? ' <button type="button" class="secondary" id="go-config">Go to the setup items</button>' : "");
   btn.disabled = !ok || submitting;

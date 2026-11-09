@@ -37,6 +37,7 @@ from tradingagents.ui import runs as run_tools
 from tradingagents.ui import settings_store as store
 
 STATIC = Path(__file__).with_name("static")
+ASSETS = Path(__file__).resolve().parent.parent / "assets"             # the program's own pictures (the logo), shared with the reports
 TOKEN_HEADER = "x-council-token"
 HOST = "127.0.0.1"
 DEFAULT_PORT = 8765
@@ -269,6 +270,11 @@ def create_app(token: str, dotenv_path: Path | None = None, port: int | None = N
         html = (STATIC / "index.html").read_text(encoding="utf-8").replace("__SESSION_TOKEN__", token)
         return HTMLResponse(html)
 
+    @app.get("/logo-emblem.svg")
+    async def logo_emblem() -> Response:
+        """The symbol of the logo, shown to the left of the app's name (the lettering is left out: the name sits beside it)."""
+        return Response((ASSETS / "analyst-consortium-emblem.svg").read_bytes(), media_type="image/svg+xml")
+
     @app.get("/api/state")
     async def state() -> dict:
         return build_state(dotenv_path)
@@ -304,9 +310,9 @@ def create_app(token: str, dotenv_path: Path | None = None, port: int | None = N
             provider = options["provider"]
             if provider["key_env"] and not provider["key_set"]:
                 raise run_tools.RequestError(
-                    f"No key is saved for {provider['id']} yet. Open Configure connections, paste the key and save.")
+                    f"No key is saved for {provider['id']} yet. Open Setup and settings, paste the key and save.")
             if not (provider["quick"] and provider["deep"]):
-                raise run_tools.RequestError("Choose a quick model and a deep model under Configure connections first.")
+                raise run_tools.RequestError("Choose a quick model and a deep model under Setup and settings first.")
             from tradingagents.default_config import build_default_config
 
             books = {k: v["path"] for k, v in run_tools.find_holdings(holdings_folders(build_default_config())).items()}

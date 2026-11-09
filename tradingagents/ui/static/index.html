@@ -12,7 +12,7 @@
 <div class="layout">
 
   <aside class="side" aria-label="Summary and display options">
-    <h1>Analyst Consortium</h1>
+    <h1 class="brand"><img class="brand-logo" src="/logo-emblem.svg" alt="" width="52" height="48"><span>Analyst Consortium</span></h1>
     <p class="sub">Run analyses and check your setup</p>
     <div class="summary" id="summary" role="status" aria-live="polite"><p class="big">Checking...</p></div>
     <div class="stack">
@@ -55,6 +55,73 @@
   </aside>
 
   <main id="main">
+    <details class="configure" id="configure" open>
+      <summary><span class="btn-like">Setup and settings</span><span class="hint-inline">AI model, keys, data sources and checks</span></summary>
+      <form class="editor" id="config-form" novalidate>
+        <fieldset class="block">
+          <legend>AI connection</legend>
+          <div class="grid">
+            <div class="field">
+              <label for="f-provider">AI provider</label>
+              <select id="f-provider"></select>
+              <p class="hint" id="h-provider"></p>
+            </div>
+            <div class="field" id="field-key">
+              <label for="f-key" id="l-key">API key</label>
+              <div class="keyrow"><input id="f-key" type="password" autocomplete="off" spellcheck="false"><button type="button" class="secondary" id="show-key" aria-pressed="false">Show</button></div>
+              <p class="hint" id="h-key"></p>
+            </div>
+            <div class="field">
+              <label for="f-quick">Quick model</label>
+              <input id="f-quick" type="text" list="dl-models" autocomplete="off" spellcheck="false">
+              <p class="hint">Used by the analysts and the debaters: many small jobs.</p>
+            </div>
+            <div class="field">
+              <label for="f-deep">Deep model</label>
+              <input id="f-deep" type="text" list="dl-models" autocomplete="off" spellcheck="false">
+              <p class="hint">Used by the managers: a few important decisions.</p>
+            </div>
+            <div class="field">
+              <label for="f-passes">Research passes per analysis</label>
+              <select id="f-passes"></select>
+              <p class="hint" id="h-cost" aria-live="polite"></p>
+            </div>
+          </div>
+          <datalist id="dl-models"></datalist>
+        </fieldset>
+
+        <fieldset class="block">
+          <legend>Optional data sources</legend>
+          <p class="hint">Each one adds a section to the reports. Leave a box empty to keep what is saved.</p>
+          <div class="grid">
+            <div class="field"><label for="f-sec">SEC contact (your name and email)</label><input id="f-sec" type="text" autocomplete="off" spellcheck="false" placeholder="Jane Doe jane@example.org"><p class="hint">The SEC asks every program to identify itself. Free.</p></div>
+            <div class="field"><label for="f-fred">FRED key</label><input id="f-fred" type="password" autocomplete="off" spellcheck="false"><p class="hint" id="h-fred">Credit spreads and the macro backdrop. Free key from fred.stlouisfed.org.</p></div>
+            <div class="field"><label for="f-quiver">Quiver token</label><input id="f-quiver" type="password" autocomplete="off" spellcheck="false"><p class="hint" id="h-quiver">Congressional trades and insider filings. Paid.</p></div>
+            <div class="field"><label for="f-alpha">Alpha Vantage key</label><input id="f-alpha" type="password" autocomplete="off" spellcheck="false"><p class="hint" id="h-alpha">Earnings-call transcripts. Free key from alphavantage.co.</p></div>
+          </div>
+        </fieldset>
+
+        <fieldset class="block">
+          <legend>Features</legend>
+          <label class="inline"><input type="checkbox" id="f-selloff"><span>Selloff rules on: weakness the whole market explains is not held against a stock.</span></label>
+          <label class="inline"><input type="checkbox" id="f-scorecard"><span>Shared scorecard on: the bull, the bear and the manager see the same facts.</span></label>
+          <div class="field">
+            <label for="f-style">Investing style for new analyses</label>
+            <select id="f-style" aria-describedby="h-fstyle"></select>
+            <p class="hint" id="h-fstyle"></p>
+          </div>
+        </fieldset>
+
+        <div class="row">
+          <button type="submit" id="save">Save settings</button>
+          <button type="button" class="secondary" id="save-test">Save and test</button>
+        </div>
+        <p class="result" id="save-result" role="status" aria-live="polite"></p>
+        <p class="hint" id="where"></p>
+      </form>
+      <div id="groups"></div>
+    </details>
+
     <section class="panel" id="find" aria-labelledby="find-h">
       <h2 id="find-h">Find stocks</h2>
       <p class="hint">A quick, free look that uses no AI and costs nothing. It finds stocks and checks each one in code against the five deal conditions the analysis uses. Tick the ones that interest you and send them to the form below, where the full analysis does the real work. It never places a trade and is not advice.</p>
@@ -220,73 +287,6 @@
       <div class="sr-only" id="run-announce" role="status" aria-live="polite"></div>
     </section>
 
-    <details class="configure" id="configure">
-      <summary><span class="btn-like">Configure connections</span><span class="hint-inline">AI model, keys and optional data sources</span></summary>
-      <form class="editor" id="config-form" novalidate>
-        <fieldset class="block">
-          <legend>AI connection</legend>
-          <div class="grid">
-            <div class="field">
-              <label for="f-provider">AI provider</label>
-              <select id="f-provider"></select>
-              <p class="hint" id="h-provider"></p>
-            </div>
-            <div class="field" id="field-key">
-              <label for="f-key" id="l-key">API key</label>
-              <div class="keyrow"><input id="f-key" type="password" autocomplete="off" spellcheck="false"><button type="button" class="secondary" id="show-key" aria-pressed="false">Show</button></div>
-              <p class="hint" id="h-key"></p>
-            </div>
-            <div class="field">
-              <label for="f-quick">Quick model</label>
-              <input id="f-quick" type="text" list="dl-models" autocomplete="off" spellcheck="false">
-              <p class="hint">Used by the analysts and the debaters: many small jobs.</p>
-            </div>
-            <div class="field">
-              <label for="f-deep">Deep model</label>
-              <input id="f-deep" type="text" list="dl-models" autocomplete="off" spellcheck="false">
-              <p class="hint">Used by the managers: a few important decisions.</p>
-            </div>
-            <div class="field">
-              <label for="f-passes">Research passes per analysis</label>
-              <select id="f-passes"></select>
-              <p class="hint" id="h-cost" aria-live="polite"></p>
-            </div>
-          </div>
-          <datalist id="dl-models"></datalist>
-        </fieldset>
-
-        <fieldset class="block">
-          <legend>Optional data sources</legend>
-          <p class="hint">Each one adds a section to the reports. Leave a box empty to keep what is saved.</p>
-          <div class="grid">
-            <div class="field"><label for="f-sec">SEC contact (your name and email)</label><input id="f-sec" type="text" autocomplete="off" spellcheck="false" placeholder="Jane Doe jane@example.org"><p class="hint">The SEC asks every program to identify itself. Free.</p></div>
-            <div class="field"><label for="f-fred">FRED key</label><input id="f-fred" type="password" autocomplete="off" spellcheck="false"><p class="hint" id="h-fred">Credit spreads and the macro backdrop. Free key from fred.stlouisfed.org.</p></div>
-            <div class="field"><label for="f-quiver">Quiver token</label><input id="f-quiver" type="password" autocomplete="off" spellcheck="false"><p class="hint" id="h-quiver">Congressional trades and insider filings. Paid.</p></div>
-            <div class="field"><label for="f-alpha">Alpha Vantage key</label><input id="f-alpha" type="password" autocomplete="off" spellcheck="false"><p class="hint" id="h-alpha">Earnings-call transcripts. Free key from alphavantage.co.</p></div>
-          </div>
-        </fieldset>
-
-        <fieldset class="block">
-          <legend>Features</legend>
-          <label class="inline"><input type="checkbox" id="f-selloff"><span>Selloff rules on: weakness the whole market explains is not held against a stock.</span></label>
-          <label class="inline"><input type="checkbox" id="f-scorecard"><span>Shared scorecard on: the bull, the bear and the manager see the same facts.</span></label>
-          <div class="field">
-            <label for="f-style">Investing style for new analyses</label>
-            <select id="f-style" aria-describedby="h-fstyle"></select>
-            <p class="hint" id="h-fstyle"></p>
-          </div>
-        </fieldset>
-
-        <div class="row">
-          <button type="submit" id="save">Save settings</button>
-          <button type="button" class="secondary" id="save-test">Save and test</button>
-        </div>
-        <p class="result" id="save-result" role="status" aria-live="polite"></p>
-        <p class="hint" id="where"></p>
-      </form>
-    </details>
-
-    <div id="groups"></div>
   </main>
 </div>
 <script src="/static/app.js"></script>

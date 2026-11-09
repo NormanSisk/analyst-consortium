@@ -24,11 +24,20 @@
   --border-w:4px;
   --page-grad:none; --page-img:none;      /* high contrast is always a plain black page */
 }
-/* The small promotion in the side column: a link that looks like the other buttons. */
-.promo { margin:1rem 0 0; padding-top:.8rem; border-top:1px solid var(--line); }
-.promo-label { margin:0 0 .4rem; font-size:.9rem; color:var(--muted); }
+/* The small promotion in the side column, in the colors of the website it points to: dark blue (#16213e) with white text and a
+   blue (#2980b9) edge. White on that blue is about 16:1, so it stays readable in every theme. */
+.promo { margin:1rem 0 0; padding:.8rem 1rem 1rem; background:#16213e; color:#ffffff; border:var(--border-w) solid #2980b9; border-radius:.7rem; }
+.promo-label { margin:0 0 .5rem; font-size:.9rem; color:#ffffff; }
+.promo .hint { margin:.5rem 0 0; color:#ffffff; }
+.promo a.btn-like { background:#ffffff; color:#16213e; border-color:#ffffff; }
+.promo a.btn-like:hover { background:#eaf2fb; }
+.promo :focus-visible { outline-color:#ffffff; }
+html[data-theme="contrast"] .promo { border-color:#ffffff; }
 a.btn-like { display:inline-flex; align-items:center; justify-content:center; text-decoration:none; text-align:center; }
-.promo .hint { margin:.4rem 0 0; }
+/* The app's symbol to the left of its name. The symbol has dark navy lines, so on the dark themes it sits on a white chip. */
+h1.brand { display:flex; align-items:center; gap:.6rem; }
+.brand-logo { height:4rem; width:auto; flex:none; border-radius:.5rem; }
+html[data-theme="dark"] .brand-logo, html[data-theme="contrast"] .brand-logo { background:#ffffff; padding:.25rem; }
 /* Text size: two choices. Normal (14px) is where everyone starts; Larger (17px) is for those who want it. The last one a person
    picks is remembered. Anyone who needs more can use the browser's own zoom, which this layout follows. */
 html { font-size:14px; }
