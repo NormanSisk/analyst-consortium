@@ -153,7 +153,7 @@ Compared with commit `c454491` (TradingAgents v0.7.1). A file that is not listed
 #### Upstream files we modified (38)
 
 - `.gitignore` (+6 -0)
-- `README.md` (+2 -0)
+- `README.md` (+118 -321)
 - `cli/main.py` (+207 -1)
 - `cli/run.py` (+38 -5)
 - `pyproject.toml` (+6 -1)
@@ -191,9 +191,9 @@ Compared with commit `c454491` (TradingAgents v0.7.1). A file that is not listed
 - `tradingagents/report_html.py` (+53 -19)
 - `tradingagents/reporting.py` (+5 -0)
 
-#### Files we added (113)
+#### Files we added (115)
 
-**Tests** (43)
+**Tests** (44)
 
 - `tests/fixtures/scorecard_nvda.json`
 - `tests/picker_world.py`
@@ -221,6 +221,7 @@ Compared with commit `c454491` (TradingAgents v0.7.1). A file that is not listed
 - `tests/test_price_target_guard.py`
 - `tests/test_public_records.py`
 - `tests/test_quiver_vendor.py`
+- `tests/test_readme.py`
 - `tests/test_rerun.py`
 - `tests/test_research_panel.py`
 - `tests/test_scorecard.py`
@@ -324,17 +325,19 @@ Compared with commit `c454491` (TradingAgents v0.7.1). A file that is not listed
 - `tradingagents/assets/app-icon.ico`
 - `tradingagents/assets/app-icon.png`
 
-**Other program files** (6)
+**Other program files** (7)
 
 - `CHANGES-FROM-UPSTREAM.md`
 - `NOTICE`
+- `assets/analyst-consortium-logo-on-white.svg`
 - `tradingagents/csv_safe.py`
 - `tradingagents/doctor.py`
 - `tradingagents/launcher.py`
 - `tradingagents/live_events.py`
 
-#### Upstream files we removed (0)
+#### Upstream files we removed (2)
 
-None.
+- `assets/TauricResearch.png`
+- `tradingagents/assets/tauric-logo.svg`
 
 <!-- inventory:end -->
