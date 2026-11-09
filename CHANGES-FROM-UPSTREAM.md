@@ -5,6 +5,7 @@
 - **Started from:** TradingAgents v0.7.1, commit `c454491` (2026-10-27).
 - **License:** unchanged, Apache License 2.0. Our changes and additions are copyright 2026 Norman R. Sisk and under the same license; the original code remains its authors'. See `LICENSE` and `NOTICE`.
 - **Not affiliated with Tauric Research.** "TradingAgents" and "Tauric Research" are the names of that project and its authors. We use them only to say where this came from, and we do not use their logo.
+- **The logo is a trademark.** The Analyst Consortium logo is a trademark (TM) of Norman R. Sisk, claimed by use and not registered, and its artwork is copyright 2026 Norman R. Sisk, all rights reserved. The Apache License does not cover the logo and grants no right to use it; `NOTICE` and the README say what you may and may not do with it.
 - **Not financial advice.** This is a research tool. It never places a trade, and nothing it says is a recommendation to buy or sell. We have not shown that any of these changes improves investment results (see "What we measured" below).
 
 ## The short version
@@ -85,7 +86,7 @@ We also fixed some existing Yahoo data behavior (see "Upstream files we modified
 - **Designed to be readable.** Every status is a symbol and a word (never color alone), text and background pairs checked for WCAG AAA contrast (at least 7:1), three color themes including high contrast, two text sizes (the last choice is remembered), and no sideways scrolling.
 - **Safe by design.** It listens on `127.0.0.1` only, checks the `Host` and `Origin` of every request, requires a random per-session token on every call, and sends a strict content-security policy, so other web sites open in your browser cannot reach it.
 - **A small promotion.** The side column has a "From the maker of this app" block, in that website's dark blue with white text, with a button linking to AeroPlanimetry (https://aeroplanimetry.com), a mapping website owned by the author. It is one marked block in `tradingagents/ui/static/index.html`; delete it if you do not want it.
-- **The logo.** The symbol of the Analyst Consortium logo (`tradingagents/assets/analyst-consortium-logo.svg` is the author's full logo; `tradingagents/assets/analyst-consortium-emblem.svg` is the symbol alone, made from it by `scripts/make_logo_emblem.py`) appears to the left of the name in the page's heading and in the header of every report. On the dark themes it sits on a white chip, because the symbol has dark navy lines.
+- **The logo.** The symbol of the Analyst Consortium logo (`tradingagents/assets/analyst-consortium-logo.svg` is the author's full logo; `tradingagents/assets/analyst-consortium-emblem.svg` is the symbol alone, made from it by `scripts/make_logo_emblem.py`) appears to the left of the name in the page's heading and in the header of every report. On the dark themes it sits on a white chip, because the symbol has dark navy lines. For the same reason the README shows `assets/analyst-consortium-logo-on-white.svg`, the full logo with a white card drawn behind it, made by the same script; nothing else in it is changed. The logo is the author's trademark (see the top of this page).
 - **One copy at a time, and a shortcut.** Starting it again while it is open just opens the page that is running. `tradingagents shortcut` puts a launcher on your desktop (Windows `.lnk`, macOS `.command`, Linux `.desktop`). The macOS and Linux launchers are written from those systems' documentation and have not been tried on them. The app icon is drawn by `scripts/make_app_icon.py` with no outside artwork.
 
 ### 4. The stock picker
@@ -122,12 +123,12 @@ All of these are marked in the file lists at the end. In short:
 - **`dataflows/vendors/yahoo/` fundamentals, market, news, ohlcv, snapshot:** the data fixes and computed facts described above.
 - **`portfolio.py`, `reporting.py`, `report_html.py`:** the profile and no-position reading, the new report sections, our header and the print layout.
 - **`cli/main.py`, `cli/run.py`:** the new commands and flags, the live event log, the usage log and the offer of extra runs.
-- **`pyproject.toml`:** an optional `ui` extra (`pip install "tradingagents[ui]"`) and the packaged icon and web files. **`.gitignore`:** keeps private local data out (see below). **`README.md`:** a short notice at the top pointing here; the rest is still the original's and will be rewritten before release.
+- **`pyproject.toml`:** an optional `ui` extra (`pip install "tradingagents[ui]"`) and the packaged icon and web files. **`.gitignore`:** keeps private local data out (see below). **`README.md`:** rewritten as Analyst Consortium's own front page: what it is, how to install and use it, what it connects to, what we have not shown, the logo's trademark position, and credit to the original. Its text is ours (apart from the citation the original asks for), and it shows none of the original's badges or pictures.
 - **Seven test files:** adjusted to match the changes.
 
 ## What we did not change
 
-The AI provider clients (`llm_clients/`), the decision memory log, checkpoint and resume, backtesting, the original agents' roles and their order in the graph (we added nodes, we did not remove or reorder any), the original data vendors other than the Yahoo fixes above, and upstream's own documentation and images.
+The AI provider clients (`llm_clients/`), the decision memory log, checkpoint and resume, backtesting, the original agents' roles and their order in the graph (we added nodes, we did not remove or reorder any), the original data vendors other than the Yahoo fixes above, and upstream's own documentation and pictures (`CHANGELOG.md` is still their release history, and their pictures are still in `assets/`). We removed only the two files that were nothing but their logo, `tradingagents/assets/tauric-logo.svg` and `assets/TauricResearch.png`, which nothing used once the README was rewritten.
 
 ## What we measured, and what we have not shown
 

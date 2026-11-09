@@ -10,6 +10,7 @@ import pytest
 ROOT = Path(__file__).resolve().parent.parent
 ASSETS = ROOT / "tradingagents" / "assets"
 LOGO, EMBLEM = ASSETS / "analyst-consortium-logo.svg", ASSETS / "analyst-consortium-emblem.svg"
+WHITE = ROOT / "assets" / "analyst-consortium-logo-on-white.svg"                       # the README's copy, on a white card
 SVG = "{http://www.w3.org/2000/svg}"
 
 
@@ -48,7 +49,30 @@ class TestTheFiles:
         with pytest.raises(ValueError, match="brand-typography"):
             script.derive('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1 1"><g id="logo-emblem"/></svg>')
 
-    @pytest.mark.parametrize("path", [LOGO, EMBLEM])
+    def test_the_readme_copy_is_the_logo_on_a_white_card_and_nothing_else_changed(self):
+        script = load_script()
+        logo_text, copy_text = LOGO.read_text(encoding="utf-8"), WHITE.read_text(encoding="utf-8")
+        assert script.on_white(logo_text) == copy_text                                   # the file on disk is exactly what the script makes
+        copy, logo = ET.fromstring(copy_text), ET.parse(LOGO).getroot()
+        assert copy.get("viewBox") == logo.get("viewBox") == "170 135 490 625"
+        card = [e for e in copy.iter() if e.tag == SVG + "rect" and e.get("id") == "white-card"]
+        assert len(card) == 1 and card[0].get("fill") == "#ffffff"
+        assert (card[0].get("x"), card[0].get("y"), card[0].get("width"), card[0].get("height")) == ("170", "135", "490", "625")
+        assert [t.text for t in copy.iter(SVG + "text")] == ["ANALYST", "CONSORTIUM", "AI STOCK INTELLIGENCE"]     # the lettering stays
+        # taking out the card and its note leaves the author's file exactly as it was: the card is the only addition
+        stripped = re.sub(r'\s*<rect id="white-card"[^>]*/>|\s*<!-- analyst-consortium-logo\.svg with a white card[^>]*-->', "", copy_text)
+        assert stripped == logo_text
+
+    def test_the_card_is_drawn_first_so_the_logo_sits_on_top_of_it(self):
+        text = WHITE.read_text(encoding="utf-8")
+        assert text.index('id="white-card"') < text.index('id="logo-emblem"')
+
+    def test_the_script_refuses_a_logo_with_no_view_box(self):
+        script = load_script()
+        with pytest.raises(ValueError, match="viewBox"):
+            script.on_white('<svg xmlns="http://www.w3.org/2000/svg"><g/></svg>')
+
+    @pytest.mark.parametrize("path", [LOGO, EMBLEM, WHITE])
     def test_both_files_hold_only_inert_drawing_shapes(self, path):
         text = path.read_text(encoding="utf-8")
         tags = set(re.findall(r"<\s*([a-zA-Z][\w:-]*)", text))
