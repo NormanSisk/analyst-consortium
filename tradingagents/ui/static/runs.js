@@ -428,7 +428,10 @@ function announce() {
     const was = lastStatus[j.id];
     if (was !== undefined && was !== j.status) {
       if (j.status === "running") say.push(j.ticker + " has started.");
-      else if (j.status === "done") say.push(j.ticker + " is done: " + (j.result && !j.result.review ? "rating " + j.result.rating + "." : "no readable rating."));
+      else if (j.status === "done") {
+        say.push(j.ticker + " is done: " + (j.result && !j.result.review ? "rating " + j.result.rating + "." : "no readable rating."));
+        showReportsWhere();                                  // the first report makes the folder
+      }
       else if (j.status === "failed") say.push(j.ticker + " failed.");
       else if (j.status === "stopped") say.push(j.ticker + " was stopped.");
     }
@@ -459,6 +462,28 @@ async function stopJob(btn) {
   try { await api("/api/runs/" + encodeURIComponent(btn.dataset.stop) + "/cancel", {}); }
   catch (x) { $("run-error").textContent = "Could not stop it: " + x.message; }
   await refreshRuns();
+}
+
+// The shortcut under the promotion in the left column: opens the folder that holds every saved report, and says where it is.
+async function showReportsWhere() {
+  try {
+    const f = await api("/api/reports-folder");
+    $("reports-where").textContent = (f.exists ? "Every saved report is in this folder: " : "Saved reports will go in this folder: ") + f.path;
+  } catch (_) { $("reports-where").textContent = ""; }
+}
+
+async function openReports(btn) {
+  $("reports-result").textContent = "";
+  btn.disabled = true;
+  try {
+    const f = await api("/api/reports-folder/open", {});
+    $("reports-result").textContent = f.opened
+      ? "Opened the reports folder. Each analysis has its own folder inside it; open complete_report.html there."
+      : (f.exists ? "Could not open it from here. Open this folder yourself: " + f.path
+                  : "There are no saved reports yet. Run an analysis, and its report will be saved in " + f.path);
+  } catch (x) { $("reports-result").textContent = "Could not open the reports folder: " + x.message; }
+  btn.disabled = false;
+  showReportsWhere();
 }
 
 // Take one analysis, or every finished one, off the list. Only the list and its small record are removed:
@@ -496,6 +521,7 @@ document.addEventListener("click", e => {
   if (t.id === "go-config") { $("configure").open = true; $("configure").scrollIntoView({block: "start"}); $("configure").querySelector("summary").focus(); }
   if (t.dataset.stop) stopJob(t);
   if (t.dataset.remove || t.id === "clear-finished") removeFromList(t);
+  if (t.id === "open-reports") openReports(t);
   if (t.dataset.openReport) openReport(t.dataset.openReport);
   if (t.dataset.save) saveFile(t.dataset.save, [t.dataset.id], t.dataset.name);
   if (t.id === "save-all-csv") saveFile("csv", jobs.filter(j => j.status === "done").map(j => j.id), "analyses_" + (runOpts ? runOpts.today : "all"));
@@ -513,6 +539,7 @@ $("r-language").addEventListener("change", () => { updateLanguage(); if (!$("r-l
 (async function initRuns() {
   setLive(pref("ac-live") !== "off");                       // remembered between visits; on unless it was turned off
   updateGate();
+  showReportsWhere();
   try { runOpts = await api("/api/run-options"); fillRunForm(); }
   catch (x) { $("run-error").textContent = "Could not load the form: " + x.message; }
   updateGate();

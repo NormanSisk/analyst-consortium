@@ -263,6 +263,27 @@ def open_in_browser(page: Path) -> bool:
     return webbrowser.open(Path(page).resolve().as_uri())
 
 
+def folder_command(path: str, platform: str) -> list[str]:
+    """The command that shows a folder in the file manager on macOS and Linux (Windows uses ``os.startfile``)."""
+    return ["open", path] if platform == "darwin" else ["xdg-open", path]
+
+
+def open_folder(folder: Path) -> bool:
+    """Show a folder in the computer's own file manager (Explorer, Finder or the desktop's). The folder is one the
+    program chose, never text from the page, and it is passed as one argument with no shell. False when nothing could be
+    started; a file manager that opens and then fails cannot be detected from here."""
+    path = str(Path(folder).resolve())
+    try:
+        if sys.platform.startswith("win"):
+            os.startfile(path)  # type: ignore[attr-defined]  # noqa: S606
+        else:
+            subprocess.Popen(folder_command(path, sys.platform), stdin=subprocess.DEVNULL,      # noqa: S603
+                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+    except OSError:
+        return False
+    return True
+
+
 def kill_tree(proc) -> None:
     """End the child and anything it started."""
     if proc.poll() is not None:
@@ -599,10 +620,10 @@ class RunManager:
                  base_env: Callable[[], Mapping[str, str]] | None = None, now: Callable[[], float] = time.time,
                  sleep: Callable[[float], None] = time.sleep, poll_seconds: float = 0.5, keep: int = 30,
                  killer: Callable[[Any], None] = kill_tree, opener: Callable[[Path], Any] = open_in_browser,
-                 start_worker: bool = True) -> None:
+                 folder_opener: Callable[[Path], Any] = open_folder, start_worker: bool = True) -> None:
         self.results_dir = Path(results_dir)
         self.root = self.results_dir / "ui-runs"
-        self._opener = opener
+        self._opener, self._folder_opener = opener, folder_opener
         self._holdings = holdings or (lambda: {})
         self._launcher, self._python, self._cwd = launcher, python or sys.executable, cwd
         self._base_env = base_env or (lambda: dict(os.environ))
@@ -820,6 +841,27 @@ class RunManager:
             return bool(self._opener(page))
         except Exception:  # noqa: BLE001 - a browser that will not start must not disturb the queue
             return False
+
+    def reports_folder(self) -> dict:
+        """Where every saved report lives, and whether that folder exists yet (it is made by the first report)."""
+        folder = self.results_dir / "reports"
+        try:
+            shown = folder.resolve()
+        except OSError:
+            shown = folder
+        return {"path": str(shown), "exists": folder.is_dir()}
+
+    def show_reports_folder(self) -> dict:
+        """Open the reports folder in the file manager. ``opened`` is False when there is no folder yet or nothing could
+        be started; the path comes back either way so the page can tell the person where it is."""
+        where = self.reports_folder()
+        opened = False
+        if where["exists"]:
+            try:
+                opened = bool(self._folder_opener(self.results_dir / "reports"))
+            except Exception:  # noqa: BLE001 - a file manager that will not start must not disturb the page
+                opened = False
+        return {**where, "opened": opened}
 
     def finished(self, ids: list[str] | None = None) -> list[Job]:
         """Done analyses, oldest first, optionally only those with the given ids (unknown ids are ignored)."""

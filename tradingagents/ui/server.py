@@ -366,6 +366,16 @@ def create_app(token: str, dotenv_path: Path | None = None, port: int | None = N
         opened = await run_in_threadpool(manager().show_report, job_id)
         return {"opened": bool(opened)}
 
+    @app.get("/api/reports-folder")
+    async def reports_folder() -> dict:
+        """Where saved reports live and whether that folder exists yet (for the shortcut under the promotion)."""
+        return await run_in_threadpool(manager().reports_folder)
+
+    @app.post("/api/reports-folder/open")
+    async def open_reports_folder() -> dict:
+        """Open the reports folder in the computer's file manager. The page names no path: the server uses its own."""
+        return await run_in_threadpool(manager().show_reports_folder)
+
     @app.post("/api/export")
     async def export_file(body: ExportRequest):
         """A finished analysis as a CSV (one row each, for any number) or a PDF (one analysis). The page saves the bytes."""

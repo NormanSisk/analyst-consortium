@@ -87,6 +87,11 @@ def _no_browser_windows(monkeypatch):
     monkeypatch.setattr(webbrowser, "open_new", refuse)
     monkeypatch.setattr(webbrowser, "open_new_tab", refuse)
 
+    def refuse_folder(path):
+        raise AssertionError(f"test tried to open a folder window: {path}")
+
+    monkeypatch.setattr(os, "startfile", refuse_folder, raising=False)      # Windows only; a file manager is a window too
+
 
 @pytest.fixture(autouse=True)
 def _at_a_terminal(monkeypatch):

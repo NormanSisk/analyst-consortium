@@ -601,6 +601,67 @@ class TestQueue:
         assert saved["ticker"] == "NVDA" and saved["status"] == "done" and saved["result"]["rating"] == "Hold"
         assert "cancel_requested" not in saved
 
+    # ---- the reports folder shortcut
+
+    def test_the_reports_folder_is_named_whether_or_not_it_exists_yet(self, tmp_path):
+        manager = rn.RunManager(tmp_path / "logs", folder_opener=lambda p: True, start_worker=False)
+        where = manager.reports_folder()
+        assert where == {"path": str((tmp_path / "logs" / "reports").resolve()), "exists": False}
+        (tmp_path / "logs" / "reports").mkdir(parents=True)
+        assert manager.reports_folder()["exists"] is True
+
+    def test_the_reports_folder_is_opened_only_when_it_exists(self, tmp_path):
+        opened = []
+        manager = rn.RunManager(tmp_path / "logs", folder_opener=lambda p: opened.append(p) or True, start_worker=False)
+        none_yet = manager.show_reports_folder()
+        assert none_yet["opened"] is False and none_yet["exists"] is False and opened == []      # nothing to show: not opened
+        assert none_yet["path"].endswith("reports")                                              # but the path is told
+        (tmp_path / "logs" / "reports").mkdir(parents=True)
+        shown = manager.show_reports_folder()
+        assert shown["opened"] is True and shown["exists"] is True and opened == [tmp_path / "logs" / "reports"]
+
+    @pytest.mark.parametrize("opener", [lambda p: False, lambda p: (_ for _ in ()).throw(OSError("no file manager"))])
+    def test_a_file_manager_that_will_not_start_does_not_disturb_the_page(self, tmp_path, opener):
+        (tmp_path / "reports").mkdir()
+        manager = rn.RunManager(tmp_path, folder_opener=opener, start_worker=False)
+        shown = manager.show_reports_folder()
+        assert shown["opened"] is False and shown["exists"] is True and shown["path"].endswith("reports")
+
+    def test_the_folder_command_follows_the_system(self):
+        assert rn.folder_command("/home/me/reports", "darwin") == ["open", "/home/me/reports"]
+        assert rn.folder_command("/home/me/reports", "linux") == ["xdg-open", "/home/me/reports"]
+        assert rn.folder_command("/srv/r", "freebsd13") == ["xdg-open", "/srv/r"]
+
+    def test_windows_opens_the_folder_with_the_shell_and_no_command_line(self, tmp_path, monkeypatch):
+        started = []
+        monkeypatch.setattr(rn.sys, "platform", "win32")
+        monkeypatch.setattr(rn.os, "startfile", started.append, raising=False)
+        monkeypatch.setattr(rn.subprocess, "Popen", lambda *a, **k: pytest.fail("a command line was started"))
+        assert rn.open_folder(tmp_path) is True
+        assert started == [str(tmp_path.resolve())]
+
+    def test_macos_and_linux_pass_the_folder_as_one_argument_with_no_shell(self, tmp_path, monkeypatch):
+        calls = []
+        monkeypatch.setattr(rn.sys, "platform", "linux")
+        monkeypatch.setattr(rn.subprocess, "Popen", lambda *a, **k: calls.append((a, k)))
+        assert rn.open_folder(tmp_path) is True
+        (command,), kwargs = calls[0]
+        assert command == ["xdg-open", str(tmp_path.resolve())] and not kwargs.get("shell")
+        assert kwargs["stdin"] is rn.subprocess.DEVNULL and kwargs["stdout"] is rn.subprocess.DEVNULL
+
+    @pytest.mark.parametrize("system", ["win32", "linux"])
+    def test_no_way_to_open_a_folder_is_a_plain_false(self, tmp_path, monkeypatch, system):
+        def fail(*args, **kwargs):
+            raise FileNotFoundError("xdg-open")
+
+        monkeypatch.setattr(rn.sys, "platform", system)
+        monkeypatch.setattr(rn.os, "startfile", fail, raising=False)
+        monkeypatch.setattr(rn.subprocess, "Popen", fail)
+        assert rn.open_folder(tmp_path) is False
+
+    def test_by_default_the_manager_opens_folders_with_the_real_opener(self, tmp_path):
+        assert rn.RunManager(tmp_path, start_worker=False)._folder_opener is rn.open_folder
+
     # ---- taking analyses off the list
 
     @staticmethod

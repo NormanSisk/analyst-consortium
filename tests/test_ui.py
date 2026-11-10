@@ -476,6 +476,30 @@ class TestRunsApi:
             time.sleep(0.01)
         assert check()
 
+    def test_the_reports_shortcut_needs_the_token_and_the_right_origin(self, dotenv, rig, tmp_path):
+        opened = []
+        manager = server.run_tools.RunManager(tmp_path / "shortcut", folder_opener=opened.append, start_worker=False)
+        (tmp_path / "shortcut" / "reports").mkdir(parents=True)
+        c = client(dotenv, runs=manager)
+        assert c.get("/api/reports-folder").status_code == 401
+        assert c.post("/api/reports-folder/open").status_code == 401
+        assert c.post("/api/reports-folder/open", headers={**HEADERS, "Origin": "https://evil.example.com"}).status_code == 403
+        assert opened == []                                            # nothing was opened by a refused request
+
+    def test_the_reports_shortcut_names_the_folder_and_opens_it_from_the_servers_own_path(self, dotenv, tmp_path):
+        opened = []
+        manager = server.run_tools.RunManager(tmp_path / "shortcut", folder_opener=lambda p: opened.append(p) or True,
+                                              start_worker=False)
+        c = client(dotenv, runs=manager)
+        where = tmp_path / "shortcut" / "reports"
+        assert c.get("/api/reports-folder", headers=HEADERS).json() == {"path": str(where.resolve()), "exists": False}
+        shown = c.post("/api/reports-folder/open", headers=HEADERS).json()
+        assert shown == {"path": str(where.resolve()), "exists": False, "opened": False} and opened == []   # no folder yet
+        where.mkdir(parents=True)
+        assert c.get("/api/reports-folder", headers=HEADERS).json()["exists"] is True
+        shown = c.post("/api/reports-folder/open", headers=HEADERS, json={"path": "C:\\Windows"}).json()
+        assert shown["opened"] is True and opened == [where]           # a path sent by the page is ignored
+
     def test_clearing_the_list_needs_the_token(self, dotenv, rig):
         c = client(dotenv, runs=rig[0])
         assert c.post("/api/runs/20261108-101010-abcd/remove").status_code == 401
