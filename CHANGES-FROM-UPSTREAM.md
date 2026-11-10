@@ -164,7 +164,7 @@ Compared with commit `c454491` (TradingAgents v0.7.1). A file that is not listed
 - `.github/workflows/ci.yml` (+44 -1)
 - `.github/workflows/release-assets.yml` (+2 -2)
 - `.gitignore` (+6 -0)
-- `CHANGELOG.md` (+38 -1)
+- `CHANGELOG.md` (+45 -1)
 - `README.md` (+129 -317)
 - `cli/display.py` (+4 -3)
 - `cli/main.py` (+208 -2)
@@ -194,9 +194,9 @@ Compared with commit `c454491` (TradingAgents v0.7.1). A file that is not listed
 - `tradingagents/agents/risk_mgmt/conservative_debator.py` (+3 -1)
 - `tradingagents/agents/risk_mgmt/neutral_debator.py` (+3 -1)
 - `tradingagents/agents/schemas.py` (+95 -3)
-- `tradingagents/agents/state.py` (+2 -0)
+- `tradingagents/agents/state.py` (+3 -0)
 - `tradingagents/agents/structured.py` (+88 -14)
-- `tradingagents/agents/tools.py` (+226 -0)
+- `tradingagents/agents/tools.py` (+227 -0)
 - `tradingagents/dataflows/router.py` (+120 -2)
 - `tradingagents/dataflows/vendors/reddit.py` (+2 -1)
 - `tradingagents/dataflows/vendors/stocktwits.py` (+2 -1)
@@ -207,14 +207,14 @@ Compared with commit `c454491` (TradingAgents v0.7.1). A file that is not listed
 - `tradingagents/dataflows/vendors/yahoo/snapshot.py` (+98 -0)
 - `tradingagents/default_config.py` (+22 -0)
 - `tradingagents/graph/setup.py` (+34 -14)
-- `tradingagents/graph/trading_graph.py` (+19 -1)
+- `tradingagents/graph/trading_graph.py` (+20 -1)
 - `tradingagents/portfolio.py` (+33 -1)
 - `tradingagents/report_html.py` (+53 -19)
-- `tradingagents/reporting.py` (+5 -0)
+- `tradingagents/reporting.py` (+11 -0)
 
-#### Files we added (118)
+#### Files we added (120)
 
-**Tests** (45)
+**Tests** (46)
 
 - `tests/fixtures/scorecard_example.json`
 - `tests/picker_world.py`
@@ -224,6 +224,7 @@ Compared with commit `c454491` (TradingAgents v0.7.1). A file that is not listed
 - `tests/test_conviction_score.py`
 - `tests/test_doctor.py`
 - `tests/test_estimates_section.py`
+- `tests/test_evidence.py`
 - `tests/test_finra_short.py`
 - `tests/test_fred_backdrop.py`
 - `tests/test_ibkr_market_stats.py`
@@ -322,10 +323,11 @@ Compared with commit `c454491` (TradingAgents v0.7.1). A file that is not listed
 - `tradingagents/dataflows/vendors/yahoo/trends.py`
 - `tradingagents/dataflows/vendors/yahoo/valuation.py`
 
-**Analysis engine** (6)
+**Analysis engine** (7)
 
 - `tradingagents/agents/analysts/toolset.py`
 - `tradingagents/agents/conviction.py`
+- `tradingagents/agents/evidence.py`
 - `tradingagents/agents/scorecard.py`
 - `tradingagents/agents/selloff.py`
 - `tradingagents/agents/style.py`
