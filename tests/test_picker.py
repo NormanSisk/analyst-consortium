@@ -11,8 +11,7 @@ import pytest
 
 from tests import picker_world as w
 from tradingagents.dataflows.vendors.yahoo import market_context as mc
-from tradingagents.picker import conditions as cond
-from tradingagents.picker import ledger, quicklook, report
+from tradingagents.picker import conditions as cond, ledger, quicklook, report
 from tradingagents.picker.cache import FundamentalsCache
 from tradingagents.picker.facts import Estimate, Facts, build_facts
 from tradingagents.picker.settings import PickerSettings
@@ -407,7 +406,7 @@ class TestBeatenDownRecipe:
     def test_the_sector_is_used_when_the_industry_has_too_few_peers(self):
         provider = w.pullback_world()
         provider._industry_pes = {"Semiconductors": [10, 11]}
-        provider._universe = [w.record(s, forward_pe=pe) for s, pe in zip(("GOOD", "OWN", "FLAT", "SHORT", "BAD"), (12, 14, 16, 18, 20))]
+        provider._universe = [w.record(s, forward_pe=pe) for s, pe in zip(("GOOD", "OWN", "FLAT", "SHORT", "BAD"), (12, 14, 16, 18, 20), strict=True)]
         row = run_beaten(provider).rows[0]
         assert row.peers.startswith("Technology sector (5 stocks)")
 
@@ -605,7 +604,7 @@ class TestReport:
 
     def test_the_csv_has_every_column_a_bom_and_crlf(self):
         data = report.to_csv(run_beaten())
-        assert data.startswith("﻿".encode("utf-8")) and b"\r\n" in data
+        assert data.startswith("﻿".encode()) and b"\r\n" in data
         import csv
         import io
 

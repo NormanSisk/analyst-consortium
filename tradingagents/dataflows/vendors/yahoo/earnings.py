@@ -13,9 +13,9 @@ import yfinance as yf
 
 from tradingagents.dataflows.date_window import is_historical
 from tradingagents.dataflows.errors import VendorUnavailableError
+from tradingagents.dataflows.net import vendor_reachable
 from tradingagents.dataflows.symbols import normalize_symbol
 from tradingagents.dataflows.vendors.yahoo.common import YAHOO_HOST, yf_retry
-from tradingagents.dataflows.net import vendor_reachable
 
 REPORTS_SHOWN = 8
 

@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Annotated
 
 import pandas as pd
@@ -84,7 +84,7 @@ def get_fundamentals(
     previous_close = info.get("regularMarketPreviousClose") or info.get("previousClose")
     quote_time = info.get("regularMarketTime")
     quote_stamp = (
-        datetime.fromtimestamp(quote_time, tz=timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+        datetime.fromtimestamp(quote_time, tz=UTC).strftime("%Y-%m-%d %H:%M UTC")
         if isinstance(quote_time, (int, float)) else None
     )
 

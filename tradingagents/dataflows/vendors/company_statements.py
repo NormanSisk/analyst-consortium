@@ -30,11 +30,18 @@ import yfinance as yf
 
 from tradingagents.dataflows.config import get_config
 from tradingagents.dataflows.date_window import get_current_date, is_historical
-from tradingagents.dataflows.errors import NoMarketDataError, VendorNotConfiguredError, VendorUnavailableError
+from tradingagents.dataflows.errors import (
+    NoMarketDataError,
+    VendorNotConfiguredError,
+    VendorUnavailableError,
+)
 from tradingagents.dataflows.files import replace_file
 from tradingagents.dataflows.symbols import normalize_symbol
 from tradingagents.dataflows.vendors import sec_edgar
-from tradingagents.dataflows.vendors.alpha_vantage.common import AlphaVantageRateLimitError, _make_api_request
+from tradingagents.dataflows.vendors.alpha_vantage.common import (
+    AlphaVantageRateLimitError,
+    _make_api_request,
+)
 from tradingagents.dataflows.vendors.yahoo.common import yf_retry
 
 logger = logging.getLogger(__name__)

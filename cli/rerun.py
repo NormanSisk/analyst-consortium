@@ -9,6 +9,7 @@ prices and news can have moved, and a failed fetch in one run does not carry int
 
 from __future__ import annotations
 
+import contextlib
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -109,7 +110,5 @@ def offer_more_runs(flags: dict, borderline: bool, usage: dict | None, first_dec
     console.print(f"\n[bold cyan]Combined result[/bold cyan]\n{sentence}")
     console.print(f"[dim]The extra runs cost about ${spent:.2f}. Their reports are in {folder}. "
                   "The first run's reports are in the usual place.[/dim]\n")
-    try:
+    with contextlib.suppress(OSError):
         (folder / "summary.txt").write_text(sentence + f"\nExtra runs cost about ${spent:.2f}.\n", encoding="utf-8")
-    except OSError:
-        pass

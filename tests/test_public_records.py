@@ -2,7 +2,7 @@
 
 import pytest
 
-from tradingagents.dataflows.errors import NoMarketDataError, VendorUnavailableError
+from tradingagents.dataflows.errors import NoMarketDataError
 from tradingagents.dataflows.vendors import public_records as pr
 
 AWARDS = {"contracts": 3, "top": [

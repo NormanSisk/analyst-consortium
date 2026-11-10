@@ -1,6 +1,6 @@
 import sys
-from pathlib import Path
 from enum import StrEnum
+from pathlib import Path
 from typing import Annotated
 
 import typer

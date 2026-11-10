@@ -227,6 +227,7 @@ class TestReachesTheReaders:
 
     def _pm_prompt(self, state_extra):
         from unittest.mock import MagicMock
+
         from tradingagents.agents.managers.portfolio_manager import create_portfolio_manager
         from tradingagents.agents.schemas import PortfolioDecision, PortfolioRating
         captured = {}

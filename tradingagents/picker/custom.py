@@ -245,9 +245,8 @@ def passes_quote(record: dict, query: CustomQuery) -> bool:
     if record.get("symbol") in query.exclude:
         return False
     for cid, (low, high) in query.ranges.items():
-        if CRITERIA_BY_ID[cid].where == "quote":
-            if not _inside(record.get(cid), low, high):                 # the record's keys are the criterion ids
-                return False
+        if CRITERIA_BY_ID[cid].where == "quote" and not _inside(record.get(cid), low, high):   # the record's keys are the criterion ids
+            return False
     return True
 
 

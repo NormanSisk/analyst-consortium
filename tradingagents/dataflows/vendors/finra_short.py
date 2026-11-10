@@ -161,7 +161,7 @@ def build_section(symbol: str, data: dict) -> tuple[list[str], list[str]]:
             lines.append(f"| {row['settled']} | {row['short']:,.0f} | {change} | {avg} | {dtc} |")
         oldest_first = [r["short"] for r in reversed(rows) if r["short"] is not None]
         rises = 0
-        for earlier, later in zip(oldest_first, oldest_first[1:]):
+        for earlier, later in zip(oldest_first, oldest_first[1:], strict=False):
             rises = rises + 1 if later > earlier else 0
         if rises >= RISING_REPORTS and oldest_first[-1 - rises] > 0 and oldest_first[-1] / oldest_first[-1 - rises] - 1 >= RISING_TOTAL:
             start = oldest_first[-1 - rises]

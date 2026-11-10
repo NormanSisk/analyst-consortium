@@ -7,8 +7,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from tradingagents.research import analyst_study as study
-from tradingagents.research import track_record as tr
+from tradingagents.research import analyst_study as study, track_record as tr
 
 COLUMNS = ["date", "Firm", "ToGrade", "FromGrade", "Action", "priceTargetAction", "currentPriceTarget", "priorPriceTarget"]
 
@@ -74,7 +73,7 @@ class TestRatingCalls:
             ("2020-03-02", "JPMorgan", "up", "Overweight", "Raises", 100),  # the same call, spelled differently
         ])
         calls = tr.build_rating_calls({"AAA": h})
-        assert sorted(zip(calls["firm"], calls["direction"], calls["kind"])) == [
+        assert sorted(zip(calls["firm"], calls["direction"], calls["kind"], strict=True)) == [
             ("barclays", -1, "downgrade"), ("citi", -1, "initiate"), ("jpmorgan", 1, "upgrade"), ("ubs", 1, "initiate")]
 
     def test_empty_or_missing_histories_give_an_empty_frame(self):
@@ -192,7 +191,7 @@ class TestInformationAndPersistence:
 
     def make(self, prior_means, now_means, prior_exit_year=None):
         rows = []
-        for k, (p, c) in enumerate(zip(prior_means, now_means)):
+        for k, (p, c) in enumerate(zip(prior_means, now_means, strict=False)):
             rows += self.outcome_rows(f"F{k}", p, 2017, exit_year=prior_exit_year)
             rows += self.outcome_rows(f"F{k}", c, 2018)
         return pd.DataFrame(rows)
@@ -334,7 +333,7 @@ class TestTargets:
 
 def study_inputs():
     prices, hist = skill_world(skilled=3, random=3, anti=3, per_year=10)
-    for k, row in enumerate(hist["AAA"].itertuples(index=False)):            # give some calls a price target
+    for k, _row in enumerate(hist["AAA"].itertuples(index=False)):            # give some calls a price target
         if k % 3 == 0:
             hist["AAA"].loc[hist["AAA"].index[k], ["priceTargetAction", "currentPriceTarget"]] = ["Raises", 100 * (1 + (k % 7) / 10)]
     return hist, prices

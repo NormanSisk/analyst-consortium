@@ -14,6 +14,7 @@ the data vendors the same as a person typing the commands one after another.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import re
@@ -27,15 +28,12 @@ import time
 import zlib
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
-from datetime import date as _date
-from datetime import datetime
+from datetime import date as _date, datetime
 from pathlib import Path
 from typing import Any
 
 from tradingagents.agents.conviction import borderline_note, read_score
 from tradingagents.agents.rating import is_review, run_rating
-from tradingagents.agents.style import HELP as STYLE_HELP
-from tradingagents.agents.style import LABELS as STYLE_LABELS
 from tradingagents.agents.style import STYLES
 from tradingagents.dataflows.symbols import normalize_symbol, safe_ticker_component
 from tradingagents.doctor import scrub
@@ -206,7 +204,7 @@ def clean_request(raw: Mapping[str, Any], *, today: _date, holdings: Mapping[str
 
 # --------------------------------------------------------------------------- one run's command and environment
 
-def build_command(job: "Job", python: str, portfolio: Path | None) -> list[str]:
+def build_command(job: Job, python: str, portfolio: Path | None) -> list[str]:
     """The command line for one analysis, answering every question the command line would otherwise ask."""
     code = "import sys; from cli.main import app; sys.argv[0] = 'tradingagents'; app()"
     command = [python, "-c", code, "--ticker", job.ticker, "--date", job.date, "--analysts", ",".join(job.analysts),
@@ -216,7 +214,7 @@ def build_command(job: "Job", python: str, portfolio: Path | None) -> list[str]:
     return command
 
 
-def build_env(job: "Job", base: Mapping[str, str]) -> dict[str, str]:
+def build_env(job: Job, base: Mapping[str, str]) -> dict[str, str]:
     """The environment for one analysis: the user's own, plus the choices made on the form."""
     env = dict(base)
     env.update({
@@ -294,10 +292,8 @@ def kill_tree(proc) -> None:
         else:
             os.killpg(proc.pid, signal.SIGTERM)
     except Exception:  # noqa: BLE001 - fall back to ending just the child
-        try:
+        with contextlib.suppress(Exception):
             proc.kill()
-        except Exception:  # noqa: BLE001
-            pass
 
 
 # --------------------------------------------------------------------------- reading a run's files
@@ -335,7 +331,7 @@ def _last_line(path: Path, since: float, now: float) -> dict | None:
     return {"text": scrub(lines[-1], os.environ, 160), "seconds_ago": age} if lines else None
 
 
-def read_progress(run_dir: Path, job: "Job", now: float, finished: bool = False) -> dict:
+def read_progress(run_dir: Path, job: Job, now: float, finished: bool = False) -> dict:
     """Which steps are done, which is under way, and what the run last did, from the files it has written."""
     since = job.started or 0.0
     reports = Path(run_dir) / "reports"
@@ -357,7 +353,7 @@ def read_progress(run_dir: Path, job: "Job", now: float, finished: bool = False)
     notes = (f"{len(filed)} of {len(job.analysts)} reports filed", "", "", "", "")
     current = next((i for i, flag in enumerate(done) if not flag), None)
     stages = []
-    for i, (label, flag) in enumerate(zip(labels, done)):
+    for i, (label, flag) in enumerate(zip(labels, done, strict=False)):
         state = "done" if flag else ("now" if i == current else "waiting")
         stages.append({"label": label, "state": state, "note": notes[i] if state != "waiting" else ""})
     return {"stages": stages, "step": len(done) if current is None else current + 1, "steps": len(done),
@@ -492,7 +488,7 @@ def read_saved_sections(folder: Path) -> dict[str, str]:
     return out
 
 
-def team_status(job: "Job", sections: Mapping[str, str], stages: list[dict] | None) -> list[dict]:
+def team_status(job: Job, sections: Mapping[str, str], stages: list[dict] | None) -> list[dict]:
     """Every team member this run involves, with a state: waiting, working, done or missing (the run ended without it)."""
     over = job.status not in STATUS_ACTIVE
     out = []
@@ -516,7 +512,7 @@ def _rev(text: str) -> str:
     return f"{zlib.crc32(text.encode('utf-8', errors='replace')):x}-{len(text)}"
 
 
-def read_live(run_dir: Path, job: "Job", now: float, after: int = 0, have: Mapping[str, str] | None = None,
+def read_live(run_dir: Path, job: Job, now: float, after: int = 0, have: Mapping[str, str] | None = None,
               saved: Path | None = None) -> dict:
     """Everything the live view needs for one analysis, new since the caller's last look.
 
@@ -602,7 +598,7 @@ class Job:
         return data
 
     @classmethod
-    def from_dict(cls, data: Mapping[str, Any]) -> "Job":
+    def from_dict(cls, data: Mapping[str, Any]) -> Job:
         names = set(cls.__dataclass_fields__) - {"cancel_requested"}
         return cls(**{k: v for k, v in data.items() if k in names})
 

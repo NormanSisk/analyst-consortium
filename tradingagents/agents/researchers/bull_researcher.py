@@ -1,12 +1,12 @@
-from tradingagents.agents.scorecard import scorecard_block
-from tradingagents.agents.selloff import selloff_rules
-from tradingagents.agents.style import style_lens
 from tradingagents.agents.context import (
     get_instrument_context_from_state,
     get_language_instruction,
     opponent_argument_or_opening,
     report_or_absent,
 )
+from tradingagents.agents.scorecard import scorecard_block
+from tradingagents.agents.selloff import selloff_rules
+from tradingagents.agents.style import style_lens
 
 
 def create_bull_researcher(llm):

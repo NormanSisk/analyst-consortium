@@ -27,7 +27,11 @@ import requests
 import yfinance as yf
 
 from tradingagents.dataflows.date_window import is_historical
-from tradingagents.dataflows.errors import NoMarketDataError, VendorNotConfiguredError, VendorUnavailableError
+from tradingagents.dataflows.errors import (
+    NoMarketDataError,
+    VendorNotConfiguredError,
+    VendorUnavailableError,
+)
 from tradingagents.dataflows.symbols import normalize_symbol
 from tradingagents.dataflows.vendors import fred
 from tradingagents.dataflows.vendors.yahoo.common import raise_for_empty, yf_retry

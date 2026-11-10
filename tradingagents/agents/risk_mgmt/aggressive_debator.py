@@ -1,5 +1,3 @@
-from tradingagents.agents.selloff import selloff_rules
-from tradingagents.agents.style import style_lens
 from tradingagents.agents.context import (
     get_instrument_context_from_state,
     get_language_instruction,
@@ -7,6 +5,8 @@ from tradingagents.agents.context import (
     opponent_argument_or_opening,
     report_or_absent,
 )
+from tradingagents.agents.selloff import selloff_rules
+from tradingagents.agents.style import style_lens
 
 
 def create_aggressive_debator(llm):

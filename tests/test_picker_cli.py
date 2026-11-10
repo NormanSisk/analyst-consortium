@@ -38,7 +38,7 @@ class TestLists:
 
     def test_files(self, tmp_path):
         good = tmp_path / "watch.csv"
-        good.write_bytes("﻿Symbol,Name\nNVDA,Nvidia\nMU,Micron\n".encode("utf-8"))
+        good.write_bytes("﻿Symbol,Name\nNVDA,Nvidia\nMU,Micron\n".encode())
         assert lists.read_symbols_file(good) == (["NVDA", "MU"], [])
         with pytest.raises(ValueError, match="could not read"):
             lists.read_symbols_file(tmp_path / "missing.csv")
@@ -78,7 +78,8 @@ class TestPickCommand:
         invoke, _, tmp_path = pick
         result = invoke("beaten-down")
         assert result.exit_code == 0 and "Recorded the top 2" in result.stderr
-        rows = list(csv.DictReader(open(tmp_path / "picker" / "picks.csv", newline="", encoding="utf-8")))
+        with open(tmp_path / "picker" / "picks.csv", newline="", encoding="utf-8") as handle:
+            rows = list(csv.DictReader(handle))
         assert [r["symbol"] for r in rows] == ["GOOD", "BAD"] and rows[0]["recipe"] == "beaten-down"
 
     def test_todays_downloads_are_saved_for_the_next_run(self, pick):
@@ -198,7 +199,8 @@ class TestScoreboardCommand:
         assert result.exit_code == 0
         data = json.loads(result.stdout)
         assert data["picks"][0]["symbol"] == "GOOD" and data["picks"][0]["horizons"]["63"] is not None
-        rows = list(csv.DictReader(open(out, newline="", encoding="utf-8-sig")))
+        with open(out, newline="", encoding="utf-8-sig") as handle:
+            rows = list(csv.DictReader(handle))
         assert len(rows) == 1 and rows[0]["symbol"] == "GOOD" and rows[0]["recipe"] == "beaten-down" and "Saved 1 stocks" in result.stderr
 
     def test_a_missing_record_file_is_not_an_error(self, pick, tmp_path):

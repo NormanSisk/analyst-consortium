@@ -22,9 +22,9 @@ from cli.display import (
     update_display,
     update_research_team_status,
 )
+from cli.rerun import offer_more_runs
 from cli.selections import depth_from_env, get_user_selections, unattended_gaps
 from cli.usage_log import UsageStatsHandler, describe, record_usage
-from cli.rerun import offer_more_runs
 from tradingagents.agents.conviction import borderline_note
 from tradingagents.agents.rating import is_review, run_rating
 from tradingagents.dataflows.symbols import safe_ticker_component
@@ -33,8 +33,7 @@ from tradingagents.graph.analyst_execution import (
     build_analyst_execution_plan,
 )
 from tradingagents.graph.trading_graph import TradingAgentsGraph
-from tradingagents.live_events import FILE_NAME as EVENTS_FILE
-from tradingagents.live_events import EventLog
+from tradingagents.live_events import FILE_NAME as EVENTS_FILE, EventLog
 
 
 def _run_directory(config: dict, ticker: str, trade_date: str) -> Path:

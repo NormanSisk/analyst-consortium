@@ -38,7 +38,7 @@ class TestReport:
     def test_the_8k_table_is_newest_first_names_items_skips_exhibits_and_the_window(self):
         text = _report()
         assert "## Form 8-K events, last 180 days (4 filed)" in text
-        rows = [l for l in text.splitlines() if l.startswith("| 2026-")]
+        rows = [line for line in text.splitlines() if line.startswith("| 2026-")]
         assert rows[0] == "| 2026-09-03 | 3.01 Notice of delisting or failure to meet a listing standard |"
         assert "| 2026-08-05 | 2.02 Results of operations (earnings release) |" in rows
         assert "9.01" not in text and "4.01" not in text.split("## Flags")[0]            # exhibits skipped; old item outside

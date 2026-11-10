@@ -5,7 +5,6 @@ import json
 import os
 import time
 from datetime import date
-from pathlib import Path
 
 import pytest
 
@@ -139,9 +138,9 @@ class TestCleanRequest:
 # ---------------------------------------------------------------------------------------------- the command
 
 def make_job(**changes):
-    values = dict(id="20261108-101010-abcd", ticker="NVDA", date="2026-11-08", analysts=["market", "news"], depth=3,
-                  passes=7, language="Spanish", holdings=None, selloff=True, scorecard=True, provider="anthropic",
-                  quick="claude-haiku-5-5", deep="claude-sonnet-5")
+    values = {"id": "20261108-101010-abcd", "ticker": "NVDA", "date": "2026-11-08", "analysts": ["market", "news"],
+              "depth": 3, "passes": 7, "language": "Spanish", "holdings": None, "selloff": True, "scorecard": True,
+              "provider": "anthropic", "quick": "claude-haiku-5-5", "deep": "claude-sonnet-5"}
     values.update(changes)
     return rn.Job(**values)
 
@@ -188,7 +187,7 @@ class TestCommandAndEnvironment:
         selections = pytest.importorskip("cli.selections")
         command = rn.build_command(make_job(), "python", None)
         flags = {"ticker": command[command.index("--ticker") + 1], "date": "d", "analysts": "a", "save": True, "show": False}
-        saved = {k: v for k, v in os.environ.items()}
+        saved = dict(os.environ)
         try:
             os.environ.update(rn.build_env(make_job(), {}))
             assert selections.unattended_gaps(flags) == []

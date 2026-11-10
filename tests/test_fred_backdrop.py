@@ -15,7 +15,7 @@ def _points(values, end=AS_OF, step=1):
 
 
 def _flags(text):
-    return [l[2:] for l in text.split("## Flags to state in the report\n")[1].split("\n\n")[0].splitlines() if l.startswith("- ")]
+    return [line[2:] for line in text.split("## Flags to state in the report\n")[1].split("\n\n")[0].splitlines() if line.startswith("- ")]
 
 
 @pytest.mark.unit

@@ -60,11 +60,11 @@ class TestSection:
         assert fs.build_section("TEST", {"interest": slow, "daily": [], "threshold": None})[1] == []
 
     def test_a_rising_short_sale_share_is_flagged_and_the_level_alone_is_not(self):
-        daily = [("2026-11-0%d" % i, 600, 1000) for i in range(1, 6)] + [("2026-10-%02d" % i, 450, 1000) for i in range(15)]
+        daily = [(f"2026-11-0{i}", 600, 1000) for i in range(1, 6)] + [(f"2026-10-{i:02d}", 450, 1000) for i in range(15)]
         lines, flags = fs.build_section("TEST", {"interest": [], "daily": daily, "threshold": None})
-        assert any("60% over the last 5 sessions against 49% over the last 20" in l for l in lines)
+        assert any("60% over the last 5 sessions against 49% over the last 20" in line for line in lines)
         assert flags == ["The short-sale share of volume has risen: 60% over the last 5 sessions against 49% over the last 20."]
-        level = [("d%d" % i, 700, 1000) for i in range(20)]
+        level = [(f"d{i}", 700, 1000) for i in range(20)]
         assert fs.build_section("TEST", {"interest": [], "daily": level, "threshold": None})[1] == []
 
     def test_the_threshold_list_is_reported_and_flagged_when_the_stock_is_on_it(self):
@@ -106,7 +106,7 @@ class TestOwnershipTieIn:
     def test_finra_lines_and_flags_join_the_report_and_unreachable_files_are_a_note(self, monkeypatch):
         monkeypatch.setattr(fs, "fetch", lambda symbol, as_of: {"interest": [], "daily": [], "threshold": ("2026-11-06", True)})
         lines, flags = ownership._finra_section("TEST", "2026-11-07")
-        assert any("on the list" in l for l in lines) and flags
+        assert any("on the list" in line for line in lines) and flags
         monkeypatch.setattr(fs, "fetch", lambda symbol, as_of: (_ for _ in ()).throw(VendorUnavailableError("down")))
         assert ownership._finra_section("TEST", "2026-11-07") == (["FINRA's files could not be reached this time."], [])
 

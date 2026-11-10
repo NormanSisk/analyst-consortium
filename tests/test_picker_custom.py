@@ -11,8 +11,7 @@ import pytest
 
 from tests import picker_world as w
 from tradingagents.dataflows.vendors.yahoo import picker_data as pdata
-from tradingagents.picker import custom as cu
-from tradingagents.picker import ledger, quicklook, report
+from tradingagents.picker import custom as cu, ledger, quicklook, report
 from tradingagents.picker.settings import PickerSettings
 from tradingagents.picker.stage_a import price_metrics
 

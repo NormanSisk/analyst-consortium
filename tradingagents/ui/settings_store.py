@@ -12,6 +12,7 @@ to be hard to misuse:
 
 from __future__ import annotations
 
+import contextlib
 import os
 import re
 from collections.abc import MutableMapping
@@ -134,10 +135,8 @@ def save(updates: dict[str, str | None], dotenv_path: Path | str | None = None,
     if not path.exists():
         # The file holds credentials: create it readable by its owner only.
         os.close(os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600))
-    try:
+    with contextlib.suppress(OSError):      # not every file system keeps modes (Windows): best effort
         os.chmod(path, 0o600)
-    except OSError:
-        pass                      # not every file system keeps modes (Windows): best effort
     for name, value in clean.items():
         if value is None:
             unset_key(str(path), name)

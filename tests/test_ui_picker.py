@@ -100,7 +100,7 @@ class TestSearching:
         job = wait_done(m, m.start("beaten-down")["id"])
         assert job["state"] == "done"
         assert "GOOD" in [r["symbol"] for r in job["result"]["rows"]]
-        assert dict((f["step"], f["count"]) for f in job["result"]["funnel"])["Stocks to look at"] == 5
+        assert {f["step"]: f["count"] for f in job["result"]["funnel"]}["Stocks to look at"] == 5
         assert any("Screening the market" in x for x in job["messages"])
 
     def test_the_settings_the_page_sends_reach_the_search(self, tmp_path):
@@ -121,7 +121,7 @@ class TestSearching:
         m = manager(tmp_path)
         job = wait_done(m, m.start("list", "GOOD FLAT")["id"])
         data = m.csv(job["id"])
-        assert data.startswith("﻿rank,symbol,name".encode("utf-8")) and b"GOOD" in data
+        assert data.startswith("﻿rank,symbol,name".encode()) and b"GOOD" in data
         assert m.csv("p20990101-000000-abcd") is None
 
     def test_symbols_that_cannot_be_used_are_reported_not_hidden(self, tmp_path):

@@ -26,10 +26,10 @@ def read(relative: str) -> str:
 @pytest.mark.unit
 def test_the_address_is_built_from_one_owner_and_one_name():
     assert project.HOME_URL == HOME
-    assert project.ISSUES_URL == f"{HOME}/issues" and project.DISCUSSIONS_URL == f"{HOME}/discussions"
-    assert project.SECURITY_REPORT_URL == f"{HOME}/security/advisories/new"
+    assert f"{HOME}/issues" == project.ISSUES_URL and f"{HOME}/discussions" == project.DISCUSSIONS_URL
+    assert f"{HOME}/security/advisories/new" == project.SECURITY_REPORT_URL
     assert project.LATEST_RELEASE_API_URL == "https://api.github.com/repos/NormanSisk/analyst-consortium/releases/latest"
-    assert project.UPSTREAM_URL == f"https://github.com/{UPSTREAM}/TradingAgents"
+    assert f"https://github.com/{UPSTREAM}/TradingAgents" == project.UPSTREAM_URL
 
 
 @pytest.mark.unit

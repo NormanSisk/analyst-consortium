@@ -21,23 +21,29 @@ from tradingagents.dataflows.vendors.company_statements import (
     get_company_statements as get_filings_company_statements,
 )
 from tradingagents.dataflows.vendors.fred import get_macro_data as get_fred_macro_data
-from tradingagents.dataflows.vendors.fred_backdrop import get_macro_backdrop as get_fred_macro_backdrop
+from tradingagents.dataflows.vendors.fred_backdrop import (
+    get_macro_backdrop as get_fred_macro_backdrop,
+)
 from tradingagents.dataflows.vendors.ibkr_market_stats import (
     get_market_statistics as get_ibkr_market_statistics,
 )
 from tradingagents.dataflows.vendors.polymarket import (
     get_prediction_markets as get_polymarket_prediction_markets,
 )
+from tradingagents.dataflows.vendors.public_records import (
+    get_public_records as get_public_data_records,
+)
 from tradingagents.dataflows.vendors.quiver import (
     get_congress_trades as get_quiver_congress_trades,
     get_insider_transactions as get_quiver_insider_transactions,
 )
-from tradingagents.dataflows.vendors.public_records import get_public_records as get_public_data_records
-from tradingagents.dataflows.vendors.sec_filing_events import get_filing_events as get_sec_filing_events
 from tradingagents.dataflows.vendors.sec_edgar import (
     get_balance_sheet as get_sec_edgar_balance_sheet,
     get_cashflow as get_sec_edgar_cashflow,
     get_income_statement as get_sec_edgar_income_statement,
+)
+from tradingagents.dataflows.vendors.sec_filing_events import (
+    get_filing_events as get_sec_filing_events,
 )
 from tradingagents.dataflows.vendors.yahoo.earnings import (
     get_earnings_facts as get_yfinance_earnings_facts,
@@ -53,12 +59,13 @@ from tradingagents.dataflows.vendors.yahoo.market import (
     get_stock_stats_indicators_window,
     get_YFin_data_online,
 )
-from tradingagents.dataflows.vendors.yahoo.market_stats import (
-    get_market_statistics as get_yfinance_market_statistics,
-)
 from tradingagents.dataflows.vendors.yahoo.market_context import (
     get_market_context as get_yfinance_market_context,
 )
+from tradingagents.dataflows.vendors.yahoo.market_stats import (
+    get_market_statistics as get_yfinance_market_statistics,
+)
+from tradingagents.dataflows.vendors.yahoo.news import get_global_news_yfinance, get_news_yfinance
 from tradingagents.dataflows.vendors.yahoo.ownership import (
     get_ownership_and_short_interest as get_yfinance_ownership_and_short_interest,
 )
@@ -66,7 +73,6 @@ from tradingagents.dataflows.vendors.yahoo.trends import get_trend_facts as get_
 from tradingagents.dataflows.vendors.yahoo.valuation import (
     get_valuation_context as get_yfinance_valuation_context,
 )
-from tradingagents.dataflows.vendors.yahoo.news import get_global_news_yfinance, get_news_yfinance
 
 logger = logging.getLogger(__name__)
 

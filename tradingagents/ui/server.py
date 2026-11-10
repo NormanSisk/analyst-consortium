@@ -31,10 +31,13 @@ from pydantic import BaseModel, ConfigDict, Field
 from starlette.concurrency import run_in_threadpool
 
 import tradingagents
-from tradingagents.agents.style import style_name
-from tradingagents.ui import exports, picker_jobs
-from tradingagents.ui import runs as run_tools
-from tradingagents.ui import settings_store as store
+from tradingagents.agents.style import (
+    HELP as STYLE_HELP,
+    LABELS as STYLE_LABELS,
+    STYLES,
+    style_name,
+)
+from tradingagents.ui import exports, picker_jobs, runs as run_tools, settings_store as store
 
 STATIC = Path(__file__).with_name("static")
 ASSETS = Path(__file__).resolve().parent.parent / "assets"             # the program's own pictures (the logo), shared with the reports
@@ -159,7 +162,7 @@ def build_state(dotenv_path: Path | None = None) -> dict:
                           for p in store.providers()],
             "models": {p: list(known.get(p, [])) for p in store.providers()},
             "passes": PASSES_OPTIONS,
-            "styles": [{"id": s, "label": run_tools.STYLE_LABELS[s], "help": run_tools.STYLE_HELP[s]} for s in run_tools.STYLES],
+            "styles": [{"id": s, "label": STYLE_LABELS[s], "help": STYLE_HELP[s]} for s in STYLES],
         },
     }
 
@@ -194,7 +197,7 @@ def build_run_options(manager: run_tools.RunManager | None = None) -> dict:
         "passes": options,
         "costs": {str(n): run_tools.estimate(provider, quick, deep, n) for n in options},
         "languages": list(run_tools.LANGUAGES),
-        "styles": [{"id": s, "label": run_tools.STYLE_LABELS[s], "help": run_tools.STYLE_HELP[s]} for s in run_tools.STYLES],
+        "styles": [{"id": s, "label": STYLE_LABELS[s], "help": STYLE_HELP[s]} for s in STYLES],
         "holdings": [{"id": name, "positions": b["positions"], "cash": b["cash"], "currency": b["currency"],
                       "profile": b["profile"], "folder": b["folder"]} for name, b in books.items()],
         "holdings_folders": [str(f) for f in holdings_folders(cfg)],

@@ -40,7 +40,7 @@ class PickerSettings:
     # the answer
     top: int = 15                        # how many to show
 
-    def validated(self) -> "PickerSettings":
+    def validated(self) -> PickerSettings:
         """This settings object, or ValueError naming the first setting that is out of range."""
         rules = {
             "min_market_cap": (0, 1e13), "min_avg_volume": (0, 1e10), "universe_limit": (10, 3000), "below_high": (0, 0.95),
@@ -58,7 +58,7 @@ class PickerSettings:
         return self
 
     @classmethod
-    def with_overrides(cls, **overrides) -> "PickerSettings":
+    def with_overrides(cls, **overrides) -> PickerSettings:
         """The defaults with the given settings replaced; a value of None leaves the default; an unknown name is an error."""
         known = {f.name for f in fields(cls)}
         unknown = sorted(set(overrides) - known)

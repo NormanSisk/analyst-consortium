@@ -99,8 +99,8 @@ class TestShortInterest:
     def test_plausible_days_to_cover_is_left_alone_and_the_edge_is_where_half_the_shares_trade_daily(self):
         lines, flags = _short(_ionq_info())            # 1.84 days: about 6% of the shares a day
         assert not any("unreliable" in line for line in lines) and not any("Days to cover" in f for f in flags)
-        quiet = dict(sharesShort=100_000, sharesOutstanding=1_000_000, floatShares=1_000_000, shortPercentOfFloat=0.1,
-                     sharesShortPriorMonth=100_000)
+        quiet = {"sharesShort": 100_000, "sharesOutstanding": 1_000_000, "floatShares": 1_000_000,
+                 "shortPercentOfFloat": 0.1, "sharesShortPriorMonth": 100_000}
         assert not any(f.startswith("Days to cover") for f in _short(_ionq_info(shortRatio=0.4, **quiet))[1])   # 25%
         assert any(f.startswith("Days to cover") for f in _short(_ionq_info(shortRatio=0.19, **quiet))[1])      # 53%
 

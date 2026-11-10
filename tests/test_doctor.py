@@ -4,7 +4,6 @@ import json
 from types import SimpleNamespace
 
 import pytest
-from pydantic import BaseModel
 from typer.testing import CliRunner
 
 from tradingagents import doctor as dr
@@ -99,7 +98,7 @@ class TestScrub:
 class TestSummaryGrammar:
     @pytest.mark.parametrize("n, word", [(0, "need"), (1, "needs"), (2, "need"), (11, "need")])
     def test_the_summary_line_agrees_with_its_number(self, n, word):
-        counts = {s: 0 for s in dr.LABEL}
+        counts = dict.fromkeys(dr.LABEL, 0)
         counts[dr.NEEDS_SETUP] = n
         text = dr.format_text(dr.Report([], "2026-11-08 10:00", counts, True, False))
         assert f"SUMMARY: 0 OK, {n} {word} setup, 0 not working, 0 off, 0 skipped." in text
@@ -360,8 +359,8 @@ class TestReport:
     def test_the_text_puts_a_status_word_first_on_every_line_and_a_fix_under_a_problem(self, tmp_path):
         text = dr.format_text(run(make_ctx(tmp_path, env={"ANTHROPIC_API_KEY": "", "QUIVER_API_KEY": ""})))
         assert "READY TO RUN: no" in text and "(REQUIRED)" in text and "To fix: Add ANTHROPIC_API_KEY" in text
-        body = [l for l in text.splitlines() if l.startswith("  [")]
-        assert body and all(l[3:].split("]")[0] in dr.LABEL.values() for l in body)
+        body = [line for line in text.splitlines() if line.startswith("  [")]
+        assert body and all(line[3:].split("]")[0] in dr.LABEL.values() for line in body)
 
     def test_the_json_carries_the_same_facts(self, tmp_path):
         data = json.loads(dr.format_json(run(make_ctx(tmp_path))))

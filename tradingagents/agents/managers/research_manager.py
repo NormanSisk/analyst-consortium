@@ -6,12 +6,12 @@ from tradingagents.agents.context import get_instrument_context_from_state, get_
 from tradingagents.agents.schemas import ResearchPlan, render_research_plan
 from tradingagents.agents.scorecard import scorecard_block
 from tradingagents.agents.selloff import selloff_rules
-from tradingagents.agents.style import style_lens
 from tradingagents.agents.structured import (
     NO_EXTERNAL_TOOLS,
     bind_structured,
     invoke_structured_or_freetext,
 )
+from tradingagents.agents.style import style_lens
 
 
 def create_research_manager(llm):

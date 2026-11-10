@@ -11,5 +11,11 @@ build
 dist
 results
 eval_results
+# Private local data: run logs, holdings files and certificate bundles must never be copied into an image.
+data
+**/my_book*.json
+*.pem
+.pytest_cache
+.ruff_cache
 Dockerfile
 docker-compose.yml

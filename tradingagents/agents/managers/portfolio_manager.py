@@ -18,8 +18,8 @@ from tradingagents.agents.context import (
 from tradingagents.agents.rating import parse_rating
 from tradingagents.agents.schemas import PortfolioDecision, render_pm_decision
 from tradingagents.agents.selloff import selloff_rules
-from tradingagents.agents.style import style_lens
 from tradingagents.agents.structured import NO_EXTERNAL_TOOLS, bind_structured, invoke_structured
+from tradingagents.agents.style import style_lens
 
 
 def create_portfolio_manager(llm):

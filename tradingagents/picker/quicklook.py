@@ -16,13 +16,19 @@ from datetime import date
 import pandas as pd
 
 from tradingagents.dataflows.vendors.yahoo import market_context as mc
-from tradingagents.picker import conditions as cond
-from tradingagents.picker import custom
+from tradingagents.picker import conditions as cond, custom
 from tradingagents.picker.cache import FundamentalsCache
 from tradingagents.picker.facts import Facts, build_facts
 from tradingagents.picker.providers import Provider
 from tradingagents.picker.settings import PickerSettings
-from tradingagents.picker.stage_a import MarketState, PriceMetrics, Window, market_state, price_metrics, sector_windows
+from tradingagents.picker.stage_a import (
+    MarketState,
+    PriceMetrics,
+    Window,
+    market_state,
+    price_metrics,
+    sector_windows,
+)
 
 MARKET, VIX = "^GSPC", "^VIX"
 RECIPES = ("beaten-down", "list", "custom")
@@ -94,7 +100,7 @@ def _percentiles(values: dict[str, float | None]) -> dict[str, float]:
     """Each stock's rank among those that have a number, from 0 to 1; stocks without one get 0.5 (neither good nor bad)."""
     present = pd.Series({k: v for k, v in values.items() if v is not None and v == v}, dtype=float)
     if len(present) < 2:
-        return {k: 0.5 for k in values}
+        return dict.fromkeys(values, 0.5)
     ranked = present.rank(pct=True)
     return {k: float(ranked[k]) if k in ranked.index else 0.5 for k in values}
 

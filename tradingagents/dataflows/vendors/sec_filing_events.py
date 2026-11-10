@@ -54,7 +54,7 @@ def _filings(submissions: dict) -> list[dict]:
     recent = (submissions.get("filings") or {}).get("recent") or {}
     keys = ("form", "filingDate", "reportDate", "items", "accessionNumber")
     columns = [recent.get(key) or [] for key in keys]
-    return [dict(zip(keys, row)) for row in zip(*columns)]
+    return [dict(zip(keys, row, strict=False)) for row in zip(*columns, strict=False)]
 
 
 def _items_text(codes: str) -> str:
@@ -92,9 +92,9 @@ def _share_counts(cik: str, as_of: str) -> list[tuple[str, int, str]] | None:
               .get("units", {}).get("shares", []))
     latest: dict[str, tuple[str, int]] = {}
     for fact in values:
-        if fact.get("filed", "9999") <= as_of and fact.get("val"):
-            if fact["end"] not in latest or fact["filed"] > latest[fact["end"]][0]:
-                latest[fact["end"]] = (fact["filed"], int(fact["val"]))
+        if (fact.get("filed", "9999") <= as_of and fact.get("val")
+                and (fact["end"] not in latest or fact["filed"] > latest[fact["end"]][0])):
+            latest[fact["end"]] = (fact["filed"], int(fact["val"]))
     return [(end, val, filed) for end, (filed, val) in sorted(latest.items())]
 
 

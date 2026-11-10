@@ -186,7 +186,7 @@ class TestReferenceLevels:
 
 def _estimate_frame(this_year=(9.31, 9.01, 10.10, 51), next_year=(15.91, 12.85, 18.75, 52)):
     rows = {"0y": this_year, "+1y": next_year}
-    return pd.DataFrame({key: dict(zip(("avg", "low", "high", "numberOfAnalysts"), values)) for key, values in rows.items()}).T
+    return pd.DataFrame({key: dict(zip(("avg", "low", "high", "numberOfAnalysts"), values, strict=False)) for key, values in rows.items()}).T
 
 
 @pytest.mark.unit

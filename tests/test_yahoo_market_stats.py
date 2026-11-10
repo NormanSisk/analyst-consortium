@@ -74,7 +74,7 @@ class TestReport:
         return ms.build_report("TEST", _prices() if prices is None else prices, options, earnings, "2026-11-07")
 
     def _flags(self, text):
-        return [l[2:] for l in text.split("## Flags to state in the report\n")[1].splitlines() if l.startswith("- ")]
+        return [line[2:] for line in text.split("## Flags to state in the report\n")[1].splitlines() if line.startswith("- ")]
 
     def test_the_option_lines_give_volatility_ratio_proxy_moves_term_straddle_flow_and_skew(self):
         text = self._report({"expiries": ROWS}, earnings=pd.Timestamp("2026-11-10"))

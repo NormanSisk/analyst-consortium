@@ -17,13 +17,17 @@ import json
 import os
 import re
 import subprocess
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from math import sqrt
 from pathlib import Path
 from typing import Annotated
 
 from tradingagents.dataflows.date_window import is_historical
-from tradingagents.dataflows.errors import NoMarketDataError, VendorNotConfiguredError, VendorUnavailableError
+from tradingagents.dataflows.errors import (
+    NoMarketDataError,
+    VendorNotConfiguredError,
+    VendorUnavailableError,
+)
 from tradingagents.dataflows.symbols import normalize_symbol
 
 HELPER_DIR_ENV = "IBKR_HELPER_DIR"
@@ -113,7 +117,7 @@ def _price_lines(snapshot: dict, last: float) -> tuple[list[str], list[str]]:
     stamp = (snapshot.get("last") or {}).get("ts")
     when = ""
     if _num(stamp):
-        when = f" at {datetime.fromtimestamp(float(stamp), tz=timezone.utc):%Y-%m-%d %H:%M} UTC"
+        when = f" at {datetime.fromtimestamp(float(stamp), tz=UTC):%Y-%m-%d %H:%M} UTC"
     line = f"- Last price {last:g}{when}"
     change, change_pct = _field(snapshot, "change", "change"), _field(snapshot, "change", "change_pct")
     if change is not None and change_pct is not None:

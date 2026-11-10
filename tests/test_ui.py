@@ -221,7 +221,7 @@ class TestApi:
         def fake(**kw):
             seen.update(kw)
             return dr.Report([dr.Result("env.python", "environment", "Python", dr.OK, "fine", required=True)], "now",
-                             {s: 0 for s in dr.LABEL} | {dr.OK: 1}, True, False)
+                             dict.fromkeys(dr.LABEL, 0) | {dr.OK: 1}, True, False)
         monkeypatch.setattr(dr, "run_doctor", fake)
         r = client(dotenv).post("/api/doctor", headers=HEADERS, json={"live_ai": False, "ids": ["env.python"]})
         assert r.status_code == 200 and r.json()["ready"] is True and r.json()["results"][0]["id"] == "env.python"
@@ -795,7 +795,8 @@ class TestServerHelpers:
     def test_a_free_port_is_found_past_a_busy_one(self):
         import socket
         with socket.socket() as busy:
-            busy.bind(("127.0.0.1", 0)); busy.listen(1)
+            busy.bind(("127.0.0.1", 0))
+            busy.listen(1)
             taken = busy.getsockname()[1]
             assert server.find_free_port(taken, 5) != taken
 

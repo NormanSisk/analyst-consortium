@@ -17,9 +17,14 @@ from dataclasses import dataclass, field
 from datetime import date, datetime
 from pathlib import Path
 
-from tradingagents.picker import custom as custom_tools
-from tradingagents.picker import ledger, lists, quicklook, report
-from tradingagents.picker import scoreboard as board_tools
+from tradingagents.picker import (
+    custom as custom_tools,
+    ledger,
+    lists,
+    quicklook,
+    report,
+    scoreboard as board_tools,
+)
 from tradingagents.picker.cache import FundamentalsCache
 from tradingagents.picker.conditions import TITLES
 from tradingagents.picker.providers import Provider, YahooProvider

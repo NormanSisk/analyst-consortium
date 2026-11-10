@@ -8,8 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from tradingagents.ui import exports as ex
-from tradingagents.ui import runs as rn
+from tradingagents.ui import exports as ex, runs as rn
 
 
 def done_job(**changes):

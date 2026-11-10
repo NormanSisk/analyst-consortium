@@ -90,7 +90,6 @@ class TestPrices:
         monkeypatch.setattr(pdata.yf, "download", lambda *a, **k: pd.DataFrame())
         assert pdata.fetch_closes(["AAA"]) == {}
         idx = self.idx()
-        cols = pd.MultiIndex.from_product([["AAA", "BBB"], ["Close"]])
         frame = pd.DataFrame({("AAA", "Close"): [np.nan] * 5, ("BBB", "Close"): np.arange(5.0) + 1}, index=idx)
         monkeypatch.setattr(pdata.yf, "download", lambda *a, **k: frame)
         assert list(pdata.fetch_closes(["AAA", "BBB"])) == ["BBB"]

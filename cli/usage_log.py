@@ -105,7 +105,7 @@ def summarize(handler: UsageStatsHandler) -> dict[str, Any]:
 def describe(usage: dict[str, Any]) -> str:
     """One plain line for the console."""
     cost = usage["estimated_cost_usd"]
-    worth = ("about $%.2f at list prices" % cost) if cost is not None else "cost not estimated (a model has no listed price)"
+    worth = f"about ${cost:.2f} at list prices" if cost is not None else "cost not estimated (a model has no listed price)"
     return (f"Tokens: {usage['tokens_in']:,} in, {usage['tokens_out']:,} out across {usage['llm_calls']} model calls; {worth}. "
             "Saved as usage.json and in usage-log.csv.")
 

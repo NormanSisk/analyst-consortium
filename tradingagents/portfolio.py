@@ -21,7 +21,6 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from tradingagents.dataflows.symbols import normalize_symbol
 
-
 # Local addition. The five-point rating scale is written for someone who holds the stock:
 # "Underweight" means reduce, "Hold" means maintain. With no position, Underweight has nothing
 # to reduce, and a run on 2026-11-04 showed the decision agents then rating a view that the

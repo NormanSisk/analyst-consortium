@@ -47,7 +47,7 @@ def raw(symbol: str = "AAA", **info) -> dict:
     quarters = ["2026-09-30", "2026-06-30", "2026-03-31", "2025-12-31", "2025-09-30"]
 
     def lines(*values):
-        return dict(zip(quarters, values))
+        return dict(zip(quarters, values, strict=False))
 
     data = {
         "symbol": symbol,
@@ -126,8 +126,8 @@ def pullback_world() -> FakeProvider:
     own = np.concatenate([base_returns(), np.full(63, -0.012)])
     flat = np.concatenate([base_returns(), np.full(63, 0.001)])
     bad = raw("BAD")
-    bad["cashflow"]["Operating Cash Flow"] = dict(zip(["2026-09-30", "2026-06-30", "2026-03-31", "2025-12-31", "2025-09-30"], (12, 20, 24, 25, 26)))
-    bad["balance"]["Total Debt"] = dict(zip(["2026-09-30", "2026-06-30", "2026-03-31", "2025-12-31", "2025-09-30"], (300, 200, 150, 120, 100)))
+    bad["cashflow"]["Operating Cash Flow"] = dict(zip(["2026-09-30", "2026-06-30", "2026-03-31", "2025-12-31", "2025-09-30"], (12, 20, 24, 25, 26), strict=True))
+    bad["balance"]["Total Debt"] = dict(zip(["2026-09-30", "2026-06-30", "2026-03-31", "2025-12-31", "2025-09-30"], (300, 200, 150, 120, 100), strict=True))
     closes = {"^GSPC": levels(m), "^VIX": vix(True), "GOOD": levels(2 * m), "BAD": levels(2 * m), "OWN": levels(own),
               "FLAT": levels(flat), "SHORT": levels(2 * m[-50:]), "SMH": levels(1.8 * m)}
     return FakeProvider(universe=[record(s) for s in ("GOOD", "OWN", "FLAT", "SHORT", "BAD")], closes=closes,

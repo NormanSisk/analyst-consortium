@@ -5,7 +5,11 @@ import subprocess
 
 import pytest
 
-from tradingagents.dataflows.errors import NoMarketDataError, VendorNotConfiguredError, VendorUnavailableError
+from tradingagents.dataflows.errors import (
+    NoMarketDataError,
+    VendorNotConfiguredError,
+    VendorUnavailableError,
+)
 from tradingagents.dataflows.vendors import ibkr_market_stats as stats
 
 KOPN = {
