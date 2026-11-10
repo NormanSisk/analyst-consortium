@@ -172,7 +172,7 @@ Compared with commit `c454491` (TradingAgents v0.7.1). A file that is not listed
 - `cli/static/welcome.txt` (+11 -6)
 - `cli/updates.py` (+18 -56)
 - `pyproject.toml` (+12 -2)
-- `tests/conftest.py` (+20 -0)
+- `tests/conftest.py` (+33 -0)
 - `tests/test_cli_commands.py` (+2 -1)
 - `tests/test_cli_headless.py` (+1 -1)
 - `tests/test_cli_updates.py` (+68 -105)
