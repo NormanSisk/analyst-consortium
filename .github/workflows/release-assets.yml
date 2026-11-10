@@ -54,6 +54,6 @@ jobs:
           /tmp/smoke/bin/pip install dist/*.whl
           # From another directory, so the imports come from the wheel, not the checkout.
           cd /tmp
-          /tmp/smoke/bin/python -c "import importlib.resources as r, tradingagents, cli.main; assert (r.files('cli') / 'static' / 'welcome.txt').is_file(); print('wheel install OK', tradingagents.__version__)"
+          /tmp/smoke/bin/python -c "import importlib.resources as r, tradingagents, cli.main; assert (r.files('cli') / 'static' / 'welcome.txt').is_file(); assert (r.files('tradingagents.ui') / 'static' / 'index.html').is_file(); assert (r.files('tradingagents') / 'assets' / 'analyst-consortium-emblem.svg').is_file(); print('wheel install OK', tradingagents.__version__)"
       - name: Attach them to the release
         run: gh release upload "$TAG" dist/* --clobber --repo "$GITHUB_REPOSITORY"

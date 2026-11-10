@@ -189,7 +189,7 @@ If you cloned it, run `git pull` in the folder. A download needs downloading aga
 pip install -e ".[ui]"
 ```
 
-`CHANGELOG.md` is the original project's release history, through v0.7.1. The version number in the code is still 0.7.1, because our changes are not versioned separately yet.
+`CHANGELOG.md` has our release notes at the top, starting with 0.8.0, and the original project's release history below them, through v0.7.1. The command line tells you at start-up when a newer release is published on this project's GitHub page; turn that off with `TRADINGAGENTS_NO_UPDATE_CHECK=1`.
 
 ## What we have not shown
 

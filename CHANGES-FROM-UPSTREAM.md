@@ -44,7 +44,7 @@ python scripts/list_changes.py --check CHANGES-FROM-UPSTREAM.md   # is this page
 | Report | analysts, debate, plan, risk, decision | adds Research Panel and Scorecard sections, our header, a print layout that keeps headings with their content | none needed |
 | After a borderline call | nothing | offers two more analyses and a combined verdict | `--no-rerun` |
 
-Five passes cost about five times the debate. With Anthropic's Haiku and Sonnet models we measured about $0.40 and six minutes per stock at five passes, and the run form shows an estimate before you start. The version number in the code is still 0.7.1, because our changes are not versioned separately yet.
+Five passes cost about five times the debate. With Anthropic's Haiku and Sonnet models we measured about $0.40 and six minutes per stock at five passes, and the run form shows an estimate before you start. Our first release is 0.8.0 (the original was at 0.7.1 when we started), and `CHANGELOG.md` starts with our release notes.
 
 ## What we added
 
