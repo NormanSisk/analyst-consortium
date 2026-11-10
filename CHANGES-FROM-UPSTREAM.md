@@ -159,7 +159,7 @@ Compared with commit `c454491` (TradingAgents v0.7.1). A file that is not listed
 - `.github/ISSUE_TEMPLATE/config.yml` (+3 -3)
 - `.github/workflows/release-assets.yml` (+1 -1)
 - `.gitignore` (+6 -0)
-- `README.md` (+118 -321)
+- `README.md` (+119 -321)
 - `cli/main.py` (+207 -1)
 - `cli/run.py` (+38 -5)
 - `cli/updates.py` (+18 -56)
