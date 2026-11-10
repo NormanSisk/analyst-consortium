@@ -151,16 +151,22 @@ Your keys (`.env`), holdings file, run logs and reports, the picks log, caches a
 
 Compared with commit `c454491` (TradingAgents v0.7.1). A file that is not listed here is unchanged.
 
-#### Upstream files we modified (38)
+#### Upstream files we modified (46)
 
+- `.env.example` (+1 -1)
+- `.github/ISSUE_TEMPLATE/bug-report.yml` (+1 -1)
+- `.github/ISSUE_TEMPLATE/config.yml` (+3 -3)
+- `.github/workflows/release-assets.yml` (+1 -1)
 - `.gitignore` (+6 -0)
 - `README.md` (+118 -321)
 - `cli/main.py` (+207 -1)
 - `cli/run.py` (+38 -5)
-- `pyproject.toml` (+6 -1)
+- `cli/updates.py` (+18 -56)
+- `pyproject.toml` (+12 -2)
 - `tests/conftest.py` (+15 -0)
 - `tests/test_cli_commands.py` (+2 -1)
 - `tests/test_cli_headless.py` (+1 -1)
+- `tests/test_cli_updates.py` (+68 -105)
 - `tests/test_graph_end_to_end.py` (+52 -3)
 - `tests/test_memory_log.py` (+2 -2)
 - `tests/test_report_html.py` (+79 -16)
@@ -180,6 +186,8 @@ Compared with commit `c454491` (TradingAgents v0.7.1). A file that is not listed
 - `tradingagents/agents/structured.py` (+88 -14)
 - `tradingagents/agents/tools.py` (+226 -0)
 - `tradingagents/dataflows/router.py` (+114 -2)
+- `tradingagents/dataflows/vendors/reddit.py` (+2 -1)
+- `tradingagents/dataflows/vendors/stocktwits.py` (+2 -1)
 - `tradingagents/dataflows/vendors/yahoo/fundamentals.py` (+79 -3)
 - `tradingagents/dataflows/vendors/yahoo/market.py` (+20 -2)
 - `tradingagents/dataflows/vendors/yahoo/news.py` (+15 -2)
@@ -192,9 +200,9 @@ Compared with commit `c454491` (TradingAgents v0.7.1). A file that is not listed
 - `tradingagents/report_html.py` (+53 -19)
 - `tradingagents/reporting.py` (+5 -0)
 
-#### Files we added (115)
+#### Files we added (117)
 
-**Tests** (44)
+**Tests** (45)
 
 - `tests/fixtures/scorecard_nvda.json`
 - `tests/picker_world.py`
@@ -220,6 +228,7 @@ Compared with commit `c454491` (TradingAgents v0.7.1). A file that is not listed
 - `tests/test_picker_scoreboard.py`
 - `tests/test_portfolio_profile.py`
 - `tests/test_price_target_guard.py`
+- `tests/test_project_address.py`
 - `tests/test_public_records.py`
 - `tests/test_quiver_vendor.py`
 - `tests/test_readme.py`
@@ -326,7 +335,7 @@ Compared with commit `c454491` (TradingAgents v0.7.1). A file that is not listed
 - `tradingagents/assets/app-icon.ico`
 - `tradingagents/assets/app-icon.png`
 
-**Other program files** (7)
+**Other program files** (8)
 
 - `CHANGES-FROM-UPSTREAM.md`
 - `NOTICE`
@@ -335,6 +344,7 @@ Compared with commit `c454491` (TradingAgents v0.7.1). A file that is not listed
 - `tradingagents/doctor.py`
 - `tradingagents/launcher.py`
 - `tradingagents/live_events.py`
+- `tradingagents/project.py`
 
 #### Upstream files we removed (2)
 
