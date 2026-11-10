@@ -206,6 +206,106 @@ class TestReading:
         assert "what drove its recent move are different questions" in text
 
 
+def _sector_world(seed=21, sector_shock=0.0, own_shock=0.0):
+    """A market, a sector with its own driver (a sector fund that moves with the market and with that driver), and a stock
+    that follows both. ``sector_shock`` is a daily drift added to the sector's driver over the last 63 sessions (a sector
+    selloff the S&P 500 does not show); ``own_shock`` is a daily drift added to the stock alone (a fall of its own)."""
+    rng = np.random.default_rng(seed)
+    market = rng.normal(0.0003, 0.009, N)
+    driver = rng.normal(0.0, 0.008, N)
+    driver[-63:] += sector_shock
+    sector = 0.8 * market + driver
+    stock = 1.0 * market + 0.9 * driver + rng.normal(0, 0.003, N)
+    stock[-63:] += own_shock
+    return market, ("Semiconductors (SMH)", _prices(sector)), stock
+
+
+@pytest.mark.unit
+class TestSectorFund:
+    """The S&P 500 alone counts a sector-wide selloff as the stock's own (the analysis of TSM on 2026-11-10: the S&P 500
+    explained about half of its 21-session fall while the semiconductor fund explained all of it)."""
+
+    def test_a_sector_fund_gets_its_own_beta_and_a_reading_for_each_window(self):
+        market, sector, stock = _sector_world()
+        text = _report(stock, market, sector=sector)
+        assert re.search(r"Beta to the sector fund \(Semiconductors \(SMH\)\) over the last 250 sessions: \d\.\d\d "
+                         r"\(uncertainty about ±0\.\d\d\)\. The sector fund explains \d+% of the variation in the stock's "
+                         r"daily moves \(R-squared 0\.\d\d\), against \d+% for the S&P 500\.", text)
+        for sessions in (63, 21):
+            assert re.search(rf"Against the sector fund, last {sessions} sessions: the stock moved [+-][\d.]+% while "
+                             rf"Semiconductors \(SMH\) moved [+-][\d.]+%\. That sector move implies [+-][\d.]+% at the stock's "
+                             r"beta to the sector, so [+-][\d.]+ points of the stock's move are not explained by the sector\. "
+                             r"Sector reading: ", text)
+        assert len(re.findall(r"Reading: ", text)) == 2 and len(re.findall(r"Sector reading: ", text)) == 2
+        assert "A sector fund holds the stock itself" in text and "shows that a fall was shared, not that it was harmless" in text
+
+    def test_without_a_sector_fund_the_report_has_no_sector_lines(self):
+        market, _, stock = _sector_world()
+        text = _report(stock, market)
+        assert "sector fund" not in text.replace("the sector fund's", "") and "Sector reading" not in text
+
+    def test_a_sector_selloff_the_s_and_p_does_not_show_is_called_shared_and_not_the_stocks_own(self):
+        market, sector, stock = _sector_world(sector_shock=-0.006)
+        text = _report(stock, market, sector=sector)
+        flags = _flags(text)
+        quarter = next(f for f in flags if f.startswith("The stock fell ") and "63 sessions" in f)
+        assert "more than the S&P 500 implies" in quarter and "it is mostly a sector move" in quarter
+        assert "Semiconductors (SMH) explains" in quarter and "mostly specific to the stock" not in quarter
+        shared = [f for f in flags if f.startswith("The sector fund Semiconductors (SMH) explains")]
+        assert shared and all("a shared fall and not weakness specific to the stock" in f for f in shared)
+        assert any("63-session fall" in f and "where the S&P 500 explains" in f for f in shared)
+        assert "Sector reading: The sector fund implies more than the stock's whole move" in text
+
+    def test_a_fall_that_is_the_stocks_own_is_still_called_its_own_with_a_sector_fund_present(self):
+        market, sector, stock = _sector_world(own_shock=-0.005)
+        flags = _flags(_report(stock, market, sector=sector))
+        assert any("the fall is mostly specific to the stock" in f for f in flags)
+        assert not any("sector-wide" in f or "mostly a sector move" in f for f in flags)
+
+    def test_the_sector_split_is_worked_out_from_the_same_arithmetic_as_the_market_split(self):
+        market, sector, stock = _sector_world(sector_shock=-0.004)
+        both = pd.concat([_prices(stock), sector[1]], axis=1, keys=["s", "f"]).dropna()
+        fit = mc._regression(both["s"], both["f"])
+        part = mc._attribution(both["s"], both["f"], fit["beta"], 21)
+        text = _report(stock, market, sector=sector)
+        line = next(x for x in text.splitlines() if x.startswith("- Against the sector fund, last 21 sessions"))
+        assert f"the stock moved {mc._pct(part['stock'])}" in line and f"implies {mc._pct(part['implied'])}" in line
+
+    def test_a_sector_fund_with_too_little_shared_history_adds_no_sector_lines(self):
+        market, sector, stock = _sector_world()
+        short = (sector[0], sector[1].iloc[-40:])
+        text = _report(stock, market, sector=short)
+        assert "| Semiconductors (SMH) |" in text and "Against the sector fund" not in text and "Sector reading" not in text
+
+
+@pytest.mark.unit
+class TestSectorReading:
+    def _part(self, stock, implied):
+        return {"stock": stock, "market": -0.19, "implied": implied, "residual": stock - implied}
+
+    def test_the_sector_reading_uses_the_sector_in_the_same_words_as_the_market_reading(self):
+        assert mc._reading(self._part(-0.143, -0.161), "sector") == (
+            "The sector fund implies more than the stock's whole move (-16.1% against -14.3%): the stock did 2 points better "
+            "than its beta to the sector implies.")
+        assert mc._reading(self._part(-0.278, -0.209), "sector") == (
+            "About 75% of the stock's move is what the sector fund implies at this beta and 25% is not explained by it, "
+            "so the move is mostly sector-driven.")
+        assert mc._reading(self._part(0.10, -0.014), "sector").startswith("The sector fund implies the opposite direction")
+        assert mc._reading(self._part(-0.02, -0.01), "sector") == (
+            "Neither the stock's move nor the sector-implied move is large enough to split.")
+
+    def test_the_market_reading_is_unchanged(self):
+        assert mc._reading(self._part(-0.278, -0.209)).endswith("so the move is mostly market-driven.")
+        assert mc._reading(self._part(-0.278, -0.209), "market") == mc._reading(self._part(-0.278, -0.209))
+
+    def test_the_share_of_a_fall_a_benchmark_implies(self):
+        assert mc._share(self._part(-0.143, -0.161)) == pytest.approx(1.126, abs=0.001)
+        assert mc._share(self._part(-0.20, -0.10)) == pytest.approx(0.5)
+        assert mc._share(self._part(-0.02, -0.01)) is None          # no fall to explain
+        assert mc._share(self._part(0.10, 0.05)) is None            # no fall to explain
+        assert mc._share(self._part(-0.10, 0.02)) is None           # the benchmark implies the opposite direction
+
+
 @pytest.mark.unit
 class TestEntryPoint:
     @pytest.fixture

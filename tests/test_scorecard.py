@@ -22,7 +22,13 @@ class TestBuild:
     def test_every_section_is_read_from_the_tool_output(self):
         text = scorecard.build_scorecard(OUTPUTS)
         lines = {line.split(":")[0].split(".")[0]: line for line in text.splitlines()}
-        assert set(lines) == {"A", "B", "C", "C2", "D", "E", "F", "G"}
+        assert set(lines) == {"A", "B", "C", "C2", "D", "E", "F", "G", "H", "I", "J"}
+        # H, I and J are worked out in code from the same text (see tests/test_evidence.py for the arithmetic)
+        assert lines["H"].startswith("H. Rule check (the five deal conditions, worked out in code with fixed thresholds, the same for every stock")
+        assert "(a) PASS" in lines["H"] and "(d) PASS" in lines["H"]
+        assert "Not checked by code: whether a filing is a financing (going-concern language and debt maturities are not needed here" in lines["H"]
+        assert lines["I"].startswith("I. Evidence tally") and "Improving (" in lines["I"] and "Worsening (" in lines["I"]
+        assert lines["J"].startswith("J. Disclosure and data gaps: Withheld or serious (count against the company): none")
         assert "Semiconductors (SMH) bear market (-27.2% from its high)" in lines["A"]
         assert "S&P 500 pullback (-6.4% from its high)" in lines["A"]
         assert "VIX 23.8, above 91% of the past year's readings" in lines["A"]
@@ -39,6 +45,37 @@ class TestBuild:
         assert "earnings yield 5.8%" in lines["E"] and "10-year Treasury yield: 4.12%" in lines["E"]
         assert "High-yield spreads are 3.12%" in lines["F"]
         assert "Ratings now (41 analysts)" in lines["G"] and "mean price target 118.50, +28%" in lines["G"]
+
+    def test_line_b_carries_the_sector_fund_readings_the_tool_prints_beside_the_market_readings(self):
+        """Fed the market-context tool's real output (not a hand-written copy), so the patterns and the tool agree."""
+        import numpy as np
+        import pandas as pd
+
+        from tradingagents.dataflows.vendors.yahoo import market_context as mc
+
+        rng = np.random.default_rng(21)
+        n = 300
+        market, driver = rng.normal(0.0003, 0.009, n), rng.normal(0.0, 0.008, n)
+        driver[-63:] -= 0.006
+
+        def prices(returns):
+            values = 100.0 * np.concatenate([[1.0], np.cumprod(1 + returns)])
+            return pd.Series(values, index=pd.bdate_range(end="2026-11-06", periods=len(values)))
+
+        stock = prices(market + 0.9 * driver + rng.normal(0, 0.003, n))
+        markets = {"S&P 500": prices(market), "Nasdaq Composite": prices(1.2 * market), "Russell 2000 (IWM)": prices(0.9 * market)}
+        report = mc.build_report("EXMP", stock, markets, None, ("Semiconductors (SMH)", prices(0.8 * market + driver)), "2026-11-07")
+        line = scorecard.build_scorecard({**OUTPUTS, "get_market_context": report}).split("\nC. ")[0].split("\nB. ")[1]
+        assert line.startswith("How much of the stock's decline the market and its sector explain: last 63 sessions: stock ")
+        assert "S&P 500 " in line and " | last 21 sessions: stock " in line
+        for window in ("63", "21"):
+            assert f"against the sector fund (Semiconductors (SMH)), last {window} sessions: stock " in line
+        assert line.count("The sector fund implies more than the stock's whole move") == 2
+        assert "Sector reading" not in line and "S&P 500 moved" not in line            # reworded, nothing left over from the tool
+
+    def test_line_b_is_unchanged_when_the_tool_gives_no_sector_lines(self):
+        line = scorecard.build_scorecard(OUTPUTS).split("\nC. ")[0].split("\nB. ")[1]
+        assert "sector fund (" not in line and line.count("last ") == 2
 
     def test_it_states_both_good_and_bad_news_in_the_tools_own_words(self):
         text = scorecard.build_scorecard(OUTPUTS)
@@ -106,7 +143,8 @@ class TestNode:
         def boom(t, d):
             raise RuntimeError("network")
         monkeypatch.setattr(scorecard, "collect_outputs", boom)
-        assert scorecard.create_scorecard_node()({"company_of_interest": "NVDA", "trade_date": "d"}) == {"scorecard": ""}
+        assert scorecard.create_scorecard_node()({"company_of_interest": "NVDA", "trade_date": "d"}) == {
+            "scorecard": "", "mechanical_check": None}
 
     @pytest.mark.parametrize("value, on", [("", True), ("0", True), ("1", False), ("true", False), (" YES ", False)])
     def test_the_switch_is_read_each_time(self, monkeypatch, value, on):

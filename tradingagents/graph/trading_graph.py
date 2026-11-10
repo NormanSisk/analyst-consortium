@@ -479,6 +479,7 @@ class TradingAgentsGraph:
             "final_rating": run_rating(final_state),
             "research_panel": final_state.get("research_panel"),
             "scorecard": final_state.get("scorecard"),
+            "mechanical_check": final_state.get("mechanical_check"),
             "structured_fallbacks": fallback_counts(),
             "run_settings": self.run_settings(),
         }

@@ -8,7 +8,8 @@ The panel is one graph node standing in for Bull Researcher -> Bear Researcher -
 ``passes`` complete debates side by side from the same analyst reports, reads each plan's rating, takes the median
 on the five-step scale (for an even number of passes the more cautious of the two middle ratings), and passes on the
 plan and debate of the first pass that gave the median rating, together with a plain-language summary of the vote.
-With a single pass the graph keeps its original nodes and this module is not used.
+The speaking order alternates between passes (bull first, then bear first), so the last word does not always go to the same
+side. With a single pass the graph keeps its original nodes and this module is not used.
 """
 
 from __future__ import annotations
@@ -95,7 +96,7 @@ def summarize(ratings: list[str], requested: int | None = None) -> str:
 def create_research_panel(bull_node, bear_node, manager_node, conditional_logic, passes: int):
     """One graph node that runs ``passes`` complete research debates and returns the median one."""
 
-    def one_pass(state: dict) -> dict:
+    def one_pass(state: dict, bear_first: bool = False) -> dict:
         debate = {"bull_history": "", "bear_history": "", "history": "", "current_response": "", "count": 0}
         s = {**state, "investment_debate_state": debate}
         # The same routing the graph uses between the debate nodes, so a change there reaches the panel too.
@@ -103,17 +104,20 @@ def create_research_panel(bull_node, bear_node, manager_node, conditional_logic,
             step = conditional_logic.should_continue_debate(s)
             if step == "Research Manager":
                 break
+            if bear_first and s["investment_debate_state"]["count"] == 0:
+                step = "Bear Researcher"          # the routing that follows is by who spoke last, so the order simply flips
             node = bull_node if step == "Bull Researcher" else bear_node
             s["investment_debate_state"] = node(s)["investment_debate_state"]
         out = manager_node(s)
         return {"plan": out["investment_plan"], "debate": out["investment_debate_state"],
-                "rating": plan_rating(out["investment_plan"])}
+                "rating": plan_rating(out["investment_plan"]), "bear_first": bear_first}
 
     def panel_node(state) -> dict:
         results, errors = [], []
         with ThreadPoolExecutor(max_workers=passes) as pool:
             # Each pass runs in its own copy of the run's context, so run-scoped settings reach the threads.
-            futures = [pool.submit(contextvars.copy_context().run, one_pass, dict(state)) for _ in range(passes)]
+            # The speaking order alternates (bull first, bear first, ...) so the last word does not always go to the same side.
+            futures = [pool.submit(contextvars.copy_context().run, one_pass, dict(state), i % 2 == 1) for i in range(passes)]
             for future in futures:
                 try:
                     results.append(future.result())
@@ -136,7 +140,8 @@ def create_research_panel(bull_node, bear_node, manager_node, conditional_logic,
         chosen = next(r for r in usable if r["rating"] == median)
         panel = {"passes": len(usable), "requested": passes, "ratings": ratings, "median": median,
                  "agreement": Counter(ratings)[median] / len(ratings), "label": agreement_label(ratings),
-                 "range": rating_range(ratings), "summary": summarize(ratings, passes)}
+                 "range": rating_range(ratings), "summary": summarize(ratings, passes),
+                 "bear_first_passes": sum(1 for r in usable if r["bear_first"])}
         return {"investment_debate_state": chosen["debate"], "investment_plan": chosen["plan"],
                 "research_panel": panel}
 

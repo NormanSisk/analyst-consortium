@@ -61,6 +61,7 @@ class AgentState(MessagesState):
     investment_plan: Annotated[str, "Investment plan from the Research Manager"]
     scorecard: Annotated[str, "Fact sheet worked out in code from the data tools, shared by the bull, the bear and the Research Manager; empty when switched off (local addition)"]
     research_panel: Annotated[dict, "How the research panel's passes voted: ratings, median, agreement, plain-language summary (local addition)"]
+    mechanical_check: Annotated[dict, "A fixed-weight checklist rating worked out in code from the data tools, kept out of the debate and shown beside the final rating as a cross-check (local addition)"]
 
     trader_investment_plan: Annotated[str, "Transaction proposal from the Trader"]
 

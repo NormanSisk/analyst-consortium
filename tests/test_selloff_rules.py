@@ -85,6 +85,82 @@ class TestRules:
         assert "do not pick the window that suits the conclusion" in text
         assert "for (b) that means figures that are missing" in text
 
+    def test_a_fall_the_stocks_sector_explains_counts_as_market_driven_but_only_for_condition_b(self):
+        """The S&P 500 alone called half of TSM's 21-session fall its own when the semiconductor fund explained all of it."""
+        text = selloff.CORE
+        rule_1 = text.split("1. ", 1)[1].split("\n2. ", 1)[0]
+        assert "Weakness the market explains is not evidence against the company" in rule_1
+        assert "Sector reading" in rule_1 and "the market's panic in one part of it" in rule_1
+        assert "The part of a fall the S&P 500 alone does not explain is not the company's own if the sector explains it" in rule_1
+        rule_4 = text.split("4. ", 1)[1].split("\n5. ", 1)[0]
+        assert "the stock's sector fund may explain the fall instead, by the same two bars" in rule_4
+        assert "both windows from the S&P 500" in rule_4 and "never one of each" in rule_4
+        assert "A sector explanation counts for (b) only" in rule_4
+        assert "the company evidence of (c) and the survival test of (d) are judged exactly as before" in rule_4
+        assert "60% or more of it over the 63 sessions and at least 45% over the last 21" in rule_4     # the bars did not move
+
+    def test_the_debaters_and_managers_are_told_a_sector_explained_fall_is_not_the_companys_own(self):
+        for role in ("bear", "conservative", "neutral", "research_manager", "portfolio_manager"):
+            assert "sector" in selloff.ROLE_LINES[role], role
+        for role in ("research_manager", "portfolio_manager"):
+            assert "the sector fund's share when the reports give it" in selloff.ROLE_LINES[role]
+
+    def test_evidence_counts_in_both_directions_by_size_and_a_small_move_is_neither(self):
+        """Rule 2 used to list only what counts against a company, so a one-quarter dip counted as 'deterioration' by the letter."""
+        rule_2 = selloff.CORE.split("2. ", 1)[1].split("\n3. ", 1)[0]
+        assert "counts in both directions, by its size, and by the same standard in both" in rule_2
+        for mirror in ("estimates or guidance raised", "results that beat", "a rising margin or a rise in operating cash flow",
+                       "falling debt", "a shrinking share count", "a stronger balance sheet"):
+            assert mirror in rule_2
+        assert "net it against the opposite evidence" in rule_2 and '"watch item"' in rule_2
+        assert "neither deterioration nor improvement" in rule_2 and "one quarter does not break a trend of several" in rule_2
+        assert "scorecard's evidence tally (line I)" in rule_2
+
+    def test_missing_information_is_of_three_kinds_and_only_the_companys_own_withholding_counts_against_it(self):
+        rule_2 = selloff.CORE.split("2. ", 1)[1].split("\n3. ", 1)[0]
+        assert "Missing information is of three kinds" in rule_2
+        assert "a late-filing notice, non-reliance on its financial statements, a notice of delisting, a bankruptcy filing" in rule_2
+        assert "what the company withheld" in rule_2 and "counts against it" in rule_2
+        assert "what we could not see" in rule_2 and "counts neither for nor against the company" in rule_2
+        assert "blocks a deal call" in rule_2 and '"not established: data gap"' in rule_2
+        assert "what this company never reports is neutral" in rule_2
+
+    def test_the_deal_conditions_start_from_the_codes_reading_and_a_threshold_is_never_moved_to_suit_a_conclusion(self):
+        rule_4 = selloff.CORE.split("4. ", 1)[1].split("\n5. ", 1)[0]
+        assert "The scorecard's rule check (line H)" in rule_4 and "fixed thresholds, worked out before the debate" in rule_4
+        assert "overturn a result only with a specific figure from the reports (name the figure)" in rule_4
+        assert "do not move a threshold to suit a conclusion" in rule_4
+        assert "UNKNOWN is a gap in our data, not a finding about the company, and it still counts as not met for a deal call" in rule_4
+
+    def test_condition_e_counts_growth_in_both_directions_and_says_the_peg_rests_on_the_same_consensus(self):
+        rule_4 = selloff.CORE.split("4. ", 1)[1].split("\n5. ", 1)[0]
+        assert "the valuation is low against its own history or its estimates, not stretched" in rule_4
+        assert "growth counts, in both directions" in rule_4
+        assert "a growth-adjusted P/E (PEG) of 1.0 or less" in rule_4 and "a PEG of 2.0 or more" in rule_4
+        assert "rests on the same consensus growth the estimates test, so say so" in rule_4
+        assert "a PEG of 1.0 or less also pays for an earnings yield up to 2 points below the 10-year Treasury yield" in rule_4
+
+    def test_the_survival_test_is_passed_on_the_numbers_when_cash_covers_all_the_debt(self):
+        rule_3 = selloff.CORE.split("3. ", 1)[1].split("\n4. ", 1)[0]
+        assert "A company whose cash covers all its debt and whose free cash flow is positive passes on the numbers" in rule_3
+        assert "nothing can fall due that cash cannot pay" in rule_3 and "is not a gap that blocks a deal call" in rule_3
+        assert "a filing tool that cannot read a foreign company's 20-F or 6-K is our gap, not the company's" in rule_3
+        assert "When cash does not cover the debt, or is unknown, the maturities and any going-concern language must be read" in rule_3
+        assert "A company that fails is not a deal. Cheap does not rescue it." in rule_3        # the test itself is as strict as before
+
+    def test_a_stock_that_is_not_a_deal_is_rated_by_its_evidence_and_not_held_at_hold_for_want_of_one(self):
+        rule_5 = selloff.CORE.split("5. ", 1)[1].split("\n6. ", 1)[0]
+        assert "withholds that extra step and nothing more: it lowers nothing" in rule_5
+        assert "rated like any other stock in a calm market, by the evidence about its business (scorecard line I)" in rule_5
+        assert "do not hold a stock at Hold for want of a deal when its evidence earns more, and do not lower one for it" in rule_5
+        for role in ("research_manager", "portfolio_manager"):
+            assert "withholds the deal step only" in selloff.ROLE_LINES[role], role
+
+    def test_a_change_in_debt_counts_only_when_cash_does_not_cover_the_debt(self):
+        rule_2 = selloff.CORE.split("2. ", 1)[1].split("\n3. ", 1)[0]
+        assert "A change in debt counts, in either direction, only when cash does not cover the debt" in rule_2
+        assert "debt that doubled while cash is many times larger is not a weaker balance sheet" in rule_2
+
     def test_insider_selling_and_unexplained_filings_are_unresolved_signals_not_deterioration(self):
         text = selloff.CORE
         rule_2 = text.split("2. ", 1)[1].split("\n3. ", 1)[0]

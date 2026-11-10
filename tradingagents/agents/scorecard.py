@@ -17,6 +17,8 @@ import logging
 import os
 import re
 
+from tradingagents.agents import evidence
+
 logger = logging.getLogger(__name__)
 
 DISABLE_ENV = "TRADINGAGENTS_NO_SCORECARD"
@@ -48,8 +50,10 @@ def _flat(text: str | None) -> str:
     return re.sub(r"\s+", " ", text or "").strip()
 
 
-def build_scorecard(outputs: dict[str, str]) -> str:
-    """The scorecard text from the tools' own output (``{tool name: text}``), or '' when nothing could be read."""
+def build_scorecard(outputs: dict[str, str], analysis: evidence.Analysis | None = None) -> str:
+    """The scorecard text from the tools' own output (``{tool name: text}``), or '' when nothing could be read.
+
+    ``analysis`` is the evidence analysis of the same outputs when the caller already has it (the graph node does)."""
     mc, earn, trend, ins, fil, val, macro = (_flat(outputs.get(name)) for name in (
         "get_market_context", "get_earnings_facts", "get_trend_facts", "get_insider_transactions",
         "get_filing_events", "get_valuation_context", "get_macro_backdrop"))
@@ -70,8 +74,15 @@ def build_scorecard(outputs: dict[str, str]) -> str:
         m = re.search(rf"Last {window} sessions: the stock moved ([-+\d.]+)% while the S&P 500 moved ([-+\d.]+)%.*?Reading: (.*?)(?: - |$)", mc)
         if m:
             parts.append(f"last {window} sessions: stock {m.group(1)}%, S&P 500 {m.group(2)}%. {m.group(3).strip()}")
+    # The same split against the stock's sector fund (a sector-wide selloff is the market's panic in one part of it).
+    for window in ("63", "21"):
+        m = re.search(rf"Against the sector fund, last {window} sessions: the stock moved ([-+\d.]+)% while (.+?) moved "
+                      r"([-+\d.]+)%.*?Sector reading: (.*?)(?: - |$)", mc)
+        if m:
+            parts.append(f"against the sector fund ({m.group(2).strip()}), last {window} sessions: stock {m.group(1)}%, "
+                         f"fund {m.group(3)}%. {m.group(4).strip()}")
     if parts:
-        out.append(("B. How much of the stock's decline the market explains", " | ".join(parts)))
+        out.append(("B. How much of the stock's decline the market and its sector explain", " | ".join(parts)))
 
     # C. evidence about the business
     c = []
@@ -143,6 +154,13 @@ def build_scorecard(outputs: dict[str, str]) -> str:
     if g:
         out.append(("G. Sell-side opinion (it skews positive; context, not a signal)", " | ".join(g)))
 
+    # H, I, J. The five deal conditions, the mirrored evidence tally and the disclosure and data gaps, worked out in code with
+    # fixed thresholds so the standard is set before the debate (see agents/evidence.py).
+    try:
+        out.extend(evidence.scorecard_lines(analysis or evidence.analyze(outputs)))
+    except Exception as exc:                      # the extra lines must never stop the scorecard
+        logger.warning("Scorecard: the rule check could not be worked out (%s); leaving lines H to J out", exc)
+
     return "\n".join(f"{k}: {v}" for k, v in out)
 
 
@@ -172,12 +190,17 @@ def create_scorecard_node():
     def scorecard_node(state) -> dict:
         if not enabled():
             return {"scorecard": ""}
+        mechanical = None
         try:
-            text = build_scorecard(collect_outputs(state["company_of_interest"], state["trade_date"]))
+            outputs = collect_outputs(state["company_of_interest"], state["trade_date"])
+            analysis = evidence.analyze(outputs)
+            text = build_scorecard(outputs, analysis)
+            # The checklist rating is kept out of the debate (it would anchor it); the report shows it beside the final rating.
+            mechanical = evidence.mechanical_check(analysis)
         except Exception as exc:
             logger.warning("Scorecard could not be built (%s); the debate runs without it", exc)
             text = ""
-        return {"scorecard": text}
+        return {"scorecard": text, "mechanical_check": mechanical}
 
     return scorecard_node
 

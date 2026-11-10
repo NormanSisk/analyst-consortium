@@ -60,6 +60,7 @@ _SECTIONS = (
     ("II. Research Team Decision", "2_research", (
         ("Research Panel", "panel.md", ("research_panel", "summary")),
         ("Scorecard", "scorecard.md", ("scorecard",)),
+        ("Mechanical cross-check", "mechanical.md", ("mechanical_text",)),
         ("Bull Researcher", "bull.md", ("investment_debate_state", "bull_history")),
         ("Bear Researcher", "bear.md", ("investment_debate_state", "bear_history")),
         ("Research Manager", "manager.md", ("investment_plan",)),
@@ -80,6 +81,11 @@ _SECTIONS = (
 
 def _report_parts(final_state: dict) -> list[tuple[str, str, list[tuple[str, str, str]]]]:
     """The sections with something to say: (heading, folder, [(agent, file, text)])."""
+    if final_state.get("mechanical_check"):
+        # The checklist rating is shown beside the debate's final rating, which only exists once the run is done.
+        from tradingagents.agents.evidence import cross_check_text
+
+        final_state = {**final_state, "mechanical_text": cross_check_text(final_state["mechanical_check"], run_rating(final_state))}
     parts = []
     for heading, folder, agents in _SECTIONS:
         written = []

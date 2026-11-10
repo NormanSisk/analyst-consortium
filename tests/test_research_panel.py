@@ -159,6 +159,34 @@ class TestNode:
         assert history == "|Bull|Bear"                       # a fresh debate each pass, not one long one
         assert out["investment_debate_state"]["count"] == 2
 
+    def test_the_speaking_order_alternates_so_the_last_word_does_not_always_go_to_the_same_side(self):
+        class Manager(_Nodes):
+            def manager(self, state):          # the rating follows who spoke first, so the chosen pass can be told apart
+                history = state["investment_debate_state"]["history"]
+                rating = "Underweight" if history.startswith("|Bear") else "Hold"
+                plan = f"**Recommendation**: {rating}\n\n**Rationale**: {history}"
+                return {"investment_debate_state": {**state["investment_debate_state"], "current_response": plan},
+                        "investment_plan": plan}
+
+        # two passes: pass 1 is bull first (Hold), pass 2 is bear first (Underweight); the median of two is the cautious one
+        out = _node(Manager([]), 2)(STATE)
+        assert out["research_panel"]["median"] == "Underweight" and out["research_panel"]["bear_first_passes"] == 1
+        assert out["investment_debate_state"]["history"] == "|Bear|Bull"          # the debate that goes on is the bear-first pass
+        out = _node(Manager([]), 5)(STATE)
+        assert out["research_panel"]["bear_first_passes"] == 2 and out["research_panel"]["passes"] == 5
+        assert sorted(out["research_panel"]["ratings"]) == ["Hold"] * 3 + ["Underweight"] * 2
+
+    def test_a_bear_first_pass_is_still_a_whole_debate_with_the_same_number_of_turns(self):
+        class Manager(_Nodes):
+            def manager(self, state):
+                history = state["investment_debate_state"]["history"]
+                plan = f"**Recommendation**: {'Underweight' if history.startswith('|Bear') else 'Hold'}\n\n**Rationale**: x"
+                return {"investment_debate_state": {**state["investment_debate_state"], "current_response": plan},
+                        "investment_plan": plan}
+
+        out = _node(Manager([]), 2, rounds=2)(STATE)
+        assert out["investment_debate_state"]["history"] == "|Bear|Bull|Bear|Bull" and out["investment_debate_state"]["count"] == 4
+
     def test_more_debate_rounds_mean_more_turns_in_every_pass(self):
         nodes = _Nodes(["Hold"] * 2)
         out = _node(nodes, 2, rounds=2)(STATE)

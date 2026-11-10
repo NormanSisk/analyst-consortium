@@ -5,7 +5,9 @@ volatile stock may only be following it; when the market is calm, the same volat
 own. This tool gives the analysts the market's state (drawdowns of the broad indexes, the small-cap fund
 and the stock's sector fund, and the VIX) and how this stock moves against it: its volatility compared
 with the market's, its beta with the share of its daily moves the market explains (R-squared), its
-stock-specific volatility, and how much of its recent move the market accounts for.
+stock-specific volatility, and how much of its recent move the market accounts for, worked out against the S&P 500 and,
+when the stock has one, against its sector fund (a sector-wide selloff is the market's panic in one part of it, and
+the S&P 500 alone would count it as the stock's own).
 
 Everything is worked out here from dated daily closes, so a run dated in the past is served as of that
 date with no look-ahead (the sector benchmark, which comes from today's Yahoo profile, is left out of
@@ -125,22 +127,47 @@ def _attribution(stock: pd.Series, market: pd.Series, beta: float, sessions: int
     return {"stock": own, "market": mkt, "implied": beta * mkt, "residual": own - beta * mkt}
 
 
-def _reading(part: dict) -> str:
+# How the same split reads against each benchmark: the S&P 500 ("the market") and the stock's sector fund.
+_WORDS = {
+    "market": {"the": "the market", "adjective": "market-implied", "beta": "its beta", "driven": "market-driven"},
+    "sector": {"the": "the sector fund", "adjective": "sector-implied", "beta": "its beta to the sector",
+               "driven": "sector-driven"},
+}
+
+
+def _share(part: dict) -> float | None:
+    """The share of a fall that the benchmark implies (above 1 when it implies more than the whole fall), or None when
+    the stock did not fall by enough to need explaining or the benchmark implies the opposite direction."""
+    stock, implied = part["stock"], part["implied"]
+    if stock > -MIN_SPLIT_MOVE or implied * stock <= 0:
+        return None
+    return implied / stock
+
+
+def _explains(share: float | None) -> str:
+    """A share of a fall in words for a flag: a percentage, "more than all" when the benchmark implies more than the whole
+    fall, "none" when it implies none."""
+    return "none" if share is None else "more than all" if share > 1 else f"{share * 100:.0f}%"
+
+
+def _reading(part: dict, source: str = "market") -> str:
     """What the split says in words, worked out here so the analyst does not have to infer it (a stock's
-    stock-specific *volatility* can be large while the recent *move* is mostly what the market implies)."""
+    stock-specific *volatility* can be large while the recent *move* is mostly what the market implies).
+    ``source`` is "market" (the S&P 500, the default) or "sector" (the stock's sector fund)."""
+    w = _WORDS[source]
     stock, implied, residual = part["stock"], part["implied"], part["residual"]
     if abs(stock) < MIN_SPLIT_MOVE and abs(implied) < MIN_SPLIT_MOVE:
-        return "Neither the stock's move nor the market-implied move is large enough to split."
+        return f"Neither the stock's move nor the {w['adjective']} move is large enough to split."
     versus = f"{_pct(implied)} against {_pct(stock)}"
-    outcome = f"the stock did {abs(residual) * 100:.0f} points {'better' if residual > 0 else 'worse'} than its beta implies."
+    outcome = f"the stock did {abs(residual) * 100:.0f} points {'better' if residual > 0 else 'worse'} than {w['beta']} implies."
     if implied * stock <= 0:
-        return f"The market implies the opposite direction ({versus}): {outcome}"
+        return f"{w['the'].capitalize()} implies the opposite direction ({versus}): {outcome}"
     share = implied / stock
     if share > 1:
-        return f"The market implies more than the stock's whole move ({versus}): {outcome}"
-    verdict = ("mostly market-driven" if share >= MOSTLY_SHARE else
+        return f"{w['the'].capitalize()} implies more than the stock's whole move ({versus}): {outcome}"
+    verdict = (f"mostly {w['driven']}" if share >= MOSTLY_SHARE else
                "mostly specific to the stock" if share <= 1 - MOSTLY_SHARE else "a mix of the two")
-    return (f"About {share * 100:.0f}% of the stock's move is what the market implies at this beta and "
+    return (f"About {share * 100:.0f}% of the stock's move is what {w['the']} implies at this beta and "
             f"{(1 - share) * 100:.0f}% is not explained by it, so the move is {verdict}.")
 
 
@@ -226,6 +253,11 @@ def build_report(symbol: str, stock: pd.Series, markets: dict[str, pd.Series], v
         if not precise:
             flags.append(f"The beta of {fit['beta']:.2f} is imprecise (uncertainty about ±{fit['error']:.2f}), so the "
                          "market-implied moves above are rough and no residual is flagged.")
+        sector_fit = _regression(stock, sector[1]) if sector else None
+        sector_parts = {}
+        if sector_fit:
+            sector_parts = {s: p for s in (QUARTER_SESSIONS, MONTH_SESSIONS)
+                            if (p := _attribution(stock, sector[1], sector_fit["beta"], s)) is not None}
         for label, sessions in (("quarter", QUARTER_SESSIONS), ("month", MONTH_SESSIONS)):
             part = _attribution(stock, spx, fit["beta"], sessions)
             if part is None:
@@ -237,13 +269,41 @@ def build_report(symbol: str, stock: pd.Series, markets: dict[str, pd.Series], v
                 f"Reading: {_reading(part)}")
             if label == "quarter" and precise:
                 points = part["residual"] * 100
-                if points <= -RESIDUAL_WORSE_POINTS:
+                sector_share = _share(sector_parts[sessions]) if sessions in sector_parts else None
+                if points <= -RESIDUAL_WORSE_POINTS and sector_share is not None and sector_share >= MOSTLY_SHARE:
+                    flags.append(f"The stock fell {abs(points):.0f} points more than the S&P 500 implies over {sessions} "
+                                 f"sessions ({_pct(part['stock'])} against {_pct(part['implied'])} implied), but the "
+                                 f"sector fund {sector[0]} explains {_explains(sector_share)} of that fall: it is mostly a sector move, "
+                                 "not weakness specific to the stock.")
+                elif points <= -RESIDUAL_WORSE_POINTS:
                     flags.append(f"The stock fell {abs(points):.0f} points more than the market implies over {sessions} "
                                  f"sessions ({_pct(part['stock'])} against {_pct(part['implied'])} implied): the fall is "
                                  "mostly specific to the stock.")
                 elif points >= RESIDUAL_BETTER_POINTS:
                     flags.append(f"The stock has held up {points:.0f} points better than the market implies over "
                                  f"{sessions} sessions ({_pct(part['stock'])} against {_pct(part['implied'])} implied).")
+        if sector_fit and sector_parts:
+            stock_lines.append(
+                f"- Beta to the sector fund ({sector[0]}) over the last {sector_fit['sessions']} sessions: "
+                f"{sector_fit['beta']:.2f} (uncertainty about ±{sector_fit['error']:.2f}). The sector fund explains "
+                f"{sector_fit['r2'] * 100:.0f}% of the variation in the stock's daily moves (R-squared "
+                f"{sector_fit['r2']:.2f}), against {fit['r2'] * 100:.0f}% for the S&P 500.")
+            for sessions in (QUARTER_SESSIONS, MONTH_SESSIONS):
+                part = sector_parts.get(sessions)
+                if part is None:
+                    continue
+                stock_lines.append(
+                    f"- Against the sector fund, last {sessions} sessions: the stock moved {_pct(part['stock'])} while "
+                    f"{sector[0]} moved {_pct(part['market'])}. That sector move implies {_pct(part['implied'])} at the "
+                    f"stock's beta to the sector, so {part['residual'] * 100:+.1f} points of the stock's move are not "
+                    f"explained by the sector. Sector reading: {_reading(part, 'sector')}")
+                own = _attribution(stock, spx, fit["beta"], sessions)
+                sector_share, market_share = _share(part), _share(own) if own else None
+                if sector_share is not None and sector_share >= MOSTLY_SHARE and (market_share or 0) < MOSTLY_SHARE:
+                    flags.append(f"The sector fund {sector[0]} explains {_explains(sector_share)} of the stock's {sessions}-session "
+                                 f"fall ({_pct(part['stock'])}) where the S&P 500 explains {_explains(market_share)}: the part of the "
+                                 "fall the S&P 500 does not explain is largely a sector-wide move, a shared fall and not "
+                                 "weakness specific to the stock.")
         if fit["specific_vol"] >= IDIOSYNCRATIC_VOL_HIGH:
             flags.append(f"Stock-specific volatility is {fit['specific_vol'] * 100:.0f}% a year, {IDIOSYNCRATIC_VOL_HIGH * 100:.0f}% "
                          "or more: very high whatever the market is doing.")
@@ -267,6 +327,10 @@ def build_report(symbol: str, stock: pd.Series, markets: dict[str, pd.Series], v
              "describes the past from price history; none of it is a forecast."]
     if not sector:
         notes.append("No sector benchmark is shown (a run dated in the past, or Yahoo gives the stock no sector).")
+    elif any("Against the sector fund" in line for line in stock_lines):
+        notes.append("The sector lines work the same way against the sector fund. A sector fund holds the stock itself, so "
+                     "it tracks the stock more closely than the S&P 500 does, and a sector can fall on news that hurts "
+                     "every company in it: a sector reading shows that a fall was shared, not that it was harmless.")
     return (f"# Market context for {symbol} (Yahoo daily closes through {last_day:%Y-%m-%d}, analysis date {as_of})\n\n"
             "## The market\n" + "\n".join(table) + ("\n" + vix_line if vix_line else "") + "\n\n"
             f"## {symbol} against the market\n" + "\n".join(stock_lines) + "\n\n"

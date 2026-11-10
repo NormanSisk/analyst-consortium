@@ -281,7 +281,8 @@ def get_market_context(
     small-cap and sector-fund drawdowns from their 52-week highs with the common labels (pullback,
     correction, bear market), the VIX against its past year, and for the instrument its volatility
     compared with the market's, its beta with R-squared, its stock-specific volatility, how much of its
-    last quarter's move the market explains, relative strength and drawdown, with rule-based flags.
+    last quarter's and month's move the S&P 500 explains and, when the stock has a sector fund, the sector
+    fund explains, relative strength and drawdown, with rule-based flags.
     Worked out from dated daily closes, so a past date is served as of that date. Uses the configured
     market_context vendor.
     Args:
