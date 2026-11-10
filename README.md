@@ -94,7 +94,7 @@ On Windows this makes a real shortcut with the app's icon. On macOS it writes a 
 
 To check your setup at any time without the web page, run `tradingagents doctor`. It changes nothing and never prints a key.
 
-The original's `Dockerfile` and `docker-compose.yml` are still in the folder. We have not tried them with our additions.
+The original's `Dockerfile` and `docker-compose.yml` are still in the folder. Our automated tests build the image, start the command line inside it, and check that a `data` folder, a holdings file, a `.env` file and certificate files in the folder are kept out of it. The image holds the command line only: the web page is not installed in it and listens only on the computer it runs on, so a container cannot show it. Nobody has run an analysis in a container yet.
 
 ## Using the web page
 
@@ -210,7 +210,7 @@ pip install -e ".[ui]"
 - **That our changes improve its calls.** Our tests (the selloff rules, the new data tools, the research panel, the analyst track-record study, the picker spot checks) show that the changes work as intended and did not wreck the ratings. They do not show better returns. [CHANGES-FROM-UPSTREAM.md](CHANGES-FROM-UPSTREAM.md#what-we-measured-and-what-we-have-not-shown) has the details.
 - **That two runs agree.** Language models are not deterministic, and the news and social sources change by the hour, so two runs of the same stock and date can differ. The five-pass median steadies borderline calls but does not remove the variation.
 - **That the free data is right.** Yahoo Finance's feeds are free and unofficial; they can be late, incomplete or wrong, and the reports say when something was missing.
-- **That it works everywhere.** See [Install](#install): our tests pass on Linux, but nobody has used our additions by hand on macOS or Linux, and Docker and AI providers other than Anthropic are untried.
+- **That it works everywhere.** See [Install](#install): our tests pass on Linux, but nobody has used our additions by hand on macOS or Linux, nobody has run an analysis in a Docker container, and AI providers other than Anthropic are untried.
 
 ## Name, logo and trademark
 
