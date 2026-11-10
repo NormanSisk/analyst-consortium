@@ -12,36 +12,38 @@ from tradingagents.agents.researchers.bear_researcher import create_bear_researc
 from tradingagents.agents.researchers.bull_researcher import create_bull_researcher
 from tradingagents.agents.schemas import PortfolioRating, ResearchPlan
 
-# Real tool output saved from an NVDA run (2026-11-07), with the long insider table cut off.
-OUTPUTS = json.loads((Path(__file__).parent / "fixtures" / "scorecard_nvda.json").read_text(encoding="utf-8"))
+# The seven data tools' output for an invented company (EXMP, Example Semiconductor Corp): every name and number is made up,
+# and the layout follows what the tools print.
+OUTPUTS = json.loads((Path(__file__).parent / "fixtures" / "scorecard_example.json").read_text(encoding="utf-8"))
 
 
 @pytest.mark.unit
 class TestBuild:
-    def test_every_section_is_read_from_real_tool_output(self):
+    def test_every_section_is_read_from_the_tool_output(self):
         text = scorecard.build_scorecard(OUTPUTS)
         lines = {line.split(":")[0].split(".")[0]: line for line in text.splitlines()}
         assert set(lines) == {"A", "B", "C", "C2", "D", "E", "F", "G"}
-        assert "Semiconductors (SMH) bear market (-30.6% from its high)" in lines["A"]
-        assert "S&P 500 pullback (-5.7% from its high)" in lines["A"]
-        assert "VIX 25.6, above 95% of the past year's readings" in lines["A"]
-        assert "last 63 sessions: stock -14.1%, S&P 500 -4.9%" in lines["B"] and "About 65% of the stock's move" in lines["B"]
-        assert "last 21 sessions: stock -19.0%, S&P 500 -5.0%" in lines["B"] and "About 50% of the stock's move" in lines["B"]
-        assert "-52.2% versus the prior quarter" in lines["C"] and "Long-term debt: 32,366, 3.8 times" in lines["C"]
+        assert "Semiconductors (SMH) bear market (-27.2% from its high)" in lines["A"]
+        assert "S&P 500 pullback (-6.4% from its high)" in lines["A"]
+        assert "VIX 23.8, above 91% of the past year's readings" in lines["A"]
+        assert "last 63 sessions: stock -15.0%, S&P 500 -5.8%" in lines["B"] and "About 66% of the stock's move" in lines["B"]
+        assert "last 21 sessions: stock -16.2%, S&P 500 -4.1%" in lines["B"] and "About 43% of the stock's move" in lines["B"]
+        assert "-36.2% versus the prior quarter" in lines["C"] and "Long-term debt: 21,540, 2.9 times" in lines["C"]
         assert "Estimates for next fiscal year (ending Jan 2028) are being raised" in lines["C"]
         assert "Next scheduled report: 2026-11-17" in lines["C"]
-        assert "Open-market purchases: 0" in lines["C2"] and "Open-market sales: 25, about $967.6M by 3 insiders" in lines["C2"]
+        assert "Open-market purchases: 2, about $1.4M by 2 insiders" in lines["C2"]
+        assert "Open-market sales: 18, about $412.3M by 4 insiders" in lines["C2"]
         assert "Filings: Financing-type Form 8-K items" in lines["C2"] and "these usually" not in lines["C2"]
-        assert "Cash and short-term investments: 62,469" in lines["D"] and "13,470, 22,115, 34,904, 48,587, 21,400" in lines["D"]
-        assert "The current 26.6x is higher than 2% of those readings" in lines["E"] and "forward P/E 11.7x" in lines["E"]
-        assert "earnings yield 8.5%" in lines["E"] and "10-year Treasury yield: 4.84%" in lines["E"]
-        assert "High-yield spreads are 3.48%" in lines["F"]
-        assert "Ratings now (62 analysts)" in lines["G"] and "mean price target 327.14, +75%" in lines["G"]
+        assert "Cash and short-term investments: 31,870" in lines["D"] and "6,210, 9,480, 14,320, 19,950, 12,100" in lines["D"]
+        assert "The current 25.0x is higher than 18% of those readings" in lines["E"] and "forward P/E 17.1x" in lines["E"]
+        assert "earnings yield 5.8%" in lines["E"] and "10-year Treasury yield: 4.12%" in lines["E"]
+        assert "High-yield spreads are 3.12%" in lines["F"]
+        assert "Ratings now (41 analysts)" in lines["G"] and "mean price target 118.50, +28%" in lines["G"]
 
     def test_it_states_both_good_and_bad_news_in_the_tools_own_words(self):
         text = scorecard.build_scorecard(OUTPUTS)
         assert "are being raised" in text          # estimates up
-        assert "-52.2% versus the prior quarter" in text   # cash flow down
+        assert "-36.2% versus the prior quarter" in text   # cash flow down
         assert "debate" not in text.lower() and "bullish" not in text.lower() and "bearish" not in text.lower()
 
     def test_line_breaks_in_the_tool_output_do_not_matter(self):

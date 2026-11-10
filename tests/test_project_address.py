@@ -41,6 +41,15 @@ def test_the_issue_links_name_this_project():
 
 
 @pytest.mark.unit
+def test_the_security_policy_sends_reports_to_the_private_form_and_the_readme_points_to_it():
+    policy = read("SECURITY.md")
+    assert project.SECURITY_REPORT_URL in policy
+    assert "public issue" in policy and project.UPSTREAM_URL in policy
+    readme = read("README.md")
+    assert "(SECURITY.md)" in readme and project.DISCUSSIONS_URL in readme and project.ISSUES_URL in readme
+
+
+@pytest.mark.unit
 def test_the_readme_tells_people_to_clone_this_project():
     readme = read("README.md")
     assert f"git clone {project.HOME_URL}.git" in readme and f"cd {project.REPO}" in readme
@@ -52,6 +61,14 @@ def test_the_tests_can_be_run_by_hand_from_the_actions_tab_as_well_as_on_a_push_
     assert "workflow_dispatch:" in ci and "branches: [main," in ci and "pull_request:" in ci
     # A failed test is repeated where people who are not signed in can read it.
     assert "if: failure()" in ci and "::error title=test failed::" in ci and "GITHUB_STEP_SUMMARY" in ci
+
+
+@pytest.mark.unit
+def test_the_tests_build_the_docker_image_and_check_that_private_files_stay_out_of_it():
+    ci = read(".github/workflows/ci.yml")
+    assert "docker build" in ci and "analyst-consortium --help" in ci and "private file in image" in ci
+    ignored = read(".dockerignore").splitlines()
+    assert {"data", "**/my_book*.json", "*.pem", "**/.env*"} <= set(ignored)
 
 
 @pytest.mark.unit

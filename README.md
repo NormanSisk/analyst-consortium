@@ -198,6 +198,12 @@ pip install -e ".[ui]"
 
 `CHANGELOG.md` has our release notes at the top, starting with 0.8.0, and the original project's release history below them, through v0.7.1. The command line tells you at start-up when a newer release is published on this project's GitHub page; turn that off with `TRADINGAGENTS_NO_UPDATE_CHECK=1`.
 
+## Questions, bugs and security
+
+- **A question or an idea:** [Discussions](https://github.com/NormanSisk/analyst-consortium/discussions).
+- **A bug:** [Issues](https://github.com/NormanSisk/analyst-consortium/issues). Say what you ran, what you expected, what happened and which release you have. Never paste your keys or your holdings file.
+- **A security problem:** report it privately, as [SECURITY.md](SECURITY.md) describes, and not in a public issue.
+
 ## What we have not shown
 
 - **That it makes money.** We have not tested that. A rating is an AI's reading of public data on one day.

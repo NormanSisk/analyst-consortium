@@ -67,6 +67,33 @@ jobs:
           # install must import the package and the CLI module.
           python -c "import tradingagents, cli.main; print('clean-install import OK')"
 
+  docker:
+    name: docker image builds and starts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Put stand-ins for private files in the folder
+        # A real checkout has none of these, so make some: .dockerignore must keep them out of the image.
+        run: |
+          mkdir data
+          echo secret > data/holdings-note.txt
+          echo secret > my_book.json
+          echo SECRET_KEY=1 > .env
+          echo secret > certificate.pem
+      - name: Build the image from the Dockerfile
+        run: docker build -t analyst-consortium .
+      - name: The private stand-ins are not in the image
+        run: |
+          if docker run --rm --entrypoint sh analyst-consortium -c 'cd /home/appuser/app && find . -maxdepth 1 \( -name data -o -name my_book.json -o -name .env -o -name certificate.pem \) | grep .'; then
+            echo '::error title=private file in image::.dockerignore let a private file into the Docker image'
+            exit 1
+          fi
+      - name: The command line starts inside it
+        run: |
+          docker run --rm analyst-consortium --help
+          # The package inside the image carries the version the repository says it is.
+          docker run --rm --entrypoint python analyst-consortium -c "import tradingagents; print(tradingagents.__version__)"
+
   lint:
     name: ruff (strict, full repo)
     runs-on: ubuntu-latest
