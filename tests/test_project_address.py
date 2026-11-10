@@ -74,6 +74,19 @@ def test_reddit_and_stocktwits_are_told_who_is_calling():
 
 
 @pytest.mark.unit
+def test_the_command_line_banners_name_this_project_and_credit_the_original():
+    welcome = read("cli/static/welcome.txt")
+    assert "TradingAgents" not in welcome and len(welcome.splitlines()) <= 14      # the lettering is ours, and fits a terminal
+    assert max(len(line) for line in welcome.splitlines()) <= 70
+    for relative in ("cli/selections.py", "cli/display.py"):
+        source = read(relative)
+        assert "Welcome to Analyst Consortium" in source and "Welcome to TradingAgents" not in source
+        assert "UPSTREAM_URL" in source and "Tauric Research (Apache-2.0)" in source
+        assert "Built by [Tauric" not in source and "© [Tauric" not in source        # not claimed as the original's own work
+    assert "Analyst Consortium" in read("cli/main.py")
+
+
+@pytest.mark.unit
 def test_the_package_description_and_links_name_this_project():
     meta = tomllib.loads(read("pyproject.toml"))["project"]
     assert meta["description"].startswith("Analyst Consortium")

@@ -29,7 +29,7 @@ else:
 
 app = typer.Typer(
     name="TradingAgents",
-    help="TradingAgents CLI: Multi-Agents LLM Financial Trading Framework",
+    help="Analyst Consortium CLI: a team of AI analysts for stock research (built on TradingAgents)",
     add_completion=True,  # Enable shell completion
 )
 

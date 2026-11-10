@@ -40,6 +40,7 @@ from cli.prompts import (
 from tradingagents.default_config import DEFAULT_CONFIG
 from tradingagents.llm_clients.factory import REASONING_EFFORT_PROVIDERS
 from tradingagents.llm_clients.openai_client import check_endpoint
+from tradingagents.project import UPSTREAM_URL
 
 
 def get_user_selections(flags=None):
@@ -118,19 +119,19 @@ def _prompt_selections(prefs, flags):
         welcome_ascii = f.read()
 
     welcome_content = f"{welcome_ascii}\n"
-    welcome_content += "[bold green]TradingAgents: Multi-Agents LLM Financial Trading Framework - CLI[/bold green]\n\n"
+    welcome_content += "[bold green]Analyst Consortium: a team of AI analysts for stock research - CLI[/bold green]\n\n"
     welcome_content += "[bold]Workflow Steps:[/bold]\n"
     welcome_content += "I. Analyst Team → II. Research Team → III. Trader → IV. Risk Management → V. Portfolio Management\n\n"
     welcome_content += (
-        "[dim]Built by [Tauric Research](https://github.com/TauricResearch)[/dim]"
+        f"[dim]Built on [link={UPSTREAM_URL}]TradingAgents[/link] by Tauric Research (Apache-2.0)[/dim]"
     )
 
     welcome_box = Panel(
         welcome_content,
         border_style="green",
         padding=(1, 2),
-        title="Welcome to TradingAgents",
-        subtitle="Multi-Agents LLM Financial Trading Framework",
+        title="Welcome to Analyst Consortium",
+        subtitle="A team of AI analysts for stock research",
     )
     console.print(Align.center(welcome_box))
     console.print()
