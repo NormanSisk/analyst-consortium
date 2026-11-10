@@ -9,7 +9,7 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 Changes that need action when upgrading are listed under "Upgrading from" in their release.
 [CHANGES-FROM-UPSTREAM.md](CHANGES-FROM-UPSTREAM.md) lists every file that differs from the original.
 
-## [0.8.0] — Unreleased
+## [0.8.0] — 2026-11-09
 
 The first release of Analyst Consortium: TradingAgents 0.7.1 with a sharper research stage, eleven new data tools, a local web page, a free stock picker and our own name and look. The version is below 1.0 on purpose: we have not shown that it improves investment results (see "Known limits").
 
