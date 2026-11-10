@@ -153,8 +153,9 @@ Your keys (`.env`), holdings file, run logs and reports, the picks log, caches a
 
 Compared with commit `c454491` (TradingAgents v0.7.1). A file that is not listed here is unchanged.
 
-#### Upstream files we modified (46)
+#### Upstream files we modified (47)
 
+- `.dockerignore` (+6 -0)
 - `.env.example` (+1 -1)
 - `.github/ISSUE_TEMPLATE/bug-report.yml` (+1 -1)
 - `.github/ISSUE_TEMPLATE/config.yml` (+3 -3)
@@ -162,7 +163,7 @@ Compared with commit `c454491` (TradingAgents v0.7.1). A file that is not listed
 - `.gitignore` (+6 -0)
 - `README.md` (+120 -321)
 - `cli/main.py` (+207 -1)
-- `cli/run.py` (+38 -5)
+- `cli/run.py` (+37 -5)
 - `cli/updates.py` (+18 -56)
 - `pyproject.toml` (+12 -2)
 - `tests/conftest.py` (+20 -0)
@@ -187,7 +188,7 @@ Compared with commit `c454491` (TradingAgents v0.7.1). A file that is not listed
 - `tradingagents/agents/state.py` (+2 -0)
 - `tradingagents/agents/structured.py` (+88 -14)
 - `tradingagents/agents/tools.py` (+226 -0)
-- `tradingagents/dataflows/router.py` (+114 -2)
+- `tradingagents/dataflows/router.py` (+120 -2)
 - `tradingagents/dataflows/vendors/reddit.py` (+2 -1)
 - `tradingagents/dataflows/vendors/stocktwits.py` (+2 -1)
 - `tradingagents/dataflows/vendors/yahoo/fundamentals.py` (+79 -3)
@@ -198,7 +199,7 @@ Compared with commit `c454491` (TradingAgents v0.7.1). A file that is not listed
 - `tradingagents/default_config.py` (+22 -0)
 - `tradingagents/graph/setup.py` (+34 -14)
 - `tradingagents/graph/trading_graph.py` (+19 -1)
-- `tradingagents/portfolio.py` (+34 -1)
+- `tradingagents/portfolio.py` (+33 -1)
 - `tradingagents/report_html.py` (+53 -19)
 - `tradingagents/reporting.py` (+5 -0)
 
