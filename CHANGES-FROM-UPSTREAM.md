@@ -154,7 +154,7 @@ Your keys (`.env`), holdings file, run logs and reports, the picks log, caches a
 
 Compared with commit `c454491` (TradingAgents v0.7.1). A file that is not listed here is unchanged.
 
-#### Upstream files we modified (47)
+#### Upstream files we modified (50)
 
 - `.dockerignore` (+6 -0)
 - `.env.example` (+1 -1)
@@ -163,8 +163,11 @@ Compared with commit `c454491` (TradingAgents v0.7.1). A file that is not listed
 - `.github/workflows/release-assets.yml` (+1 -1)
 - `.gitignore` (+6 -0)
 - `README.md` (+120 -321)
-- `cli/main.py` (+207 -1)
+- `cli/display.py` (+4 -3)
+- `cli/main.py` (+208 -2)
 - `cli/run.py` (+37 -5)
+- `cli/selections.py` (+5 -4)
+- `cli/static/welcome.txt` (+11 -6)
 - `cli/updates.py` (+18 -56)
 - `pyproject.toml` (+12 -2)
 - `tests/conftest.py` (+20 -0)
