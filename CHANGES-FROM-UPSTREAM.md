@@ -160,7 +160,7 @@ Compared with commit `c454491` (TradingAgents v0.7.1). A file that is not listed
 - `.env.example` (+1 -1)
 - `.github/ISSUE_TEMPLATE/bug-report.yml` (+1 -1)
 - `.github/ISSUE_TEMPLATE/config.yml` (+3 -3)
-- `.github/workflows/ci.yml` (+1 -0)
+- `.github/workflows/ci.yml` (+17 -1)
 - `.github/workflows/release-assets.yml` (+2 -2)
 - `.gitignore` (+6 -0)
 - `CHANGELOG.md` (+38 -1)
