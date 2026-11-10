@@ -39,7 +39,7 @@ The changes to the analysis can each be switched back to the original's behavior
 
 ## Install
 
-**You need** Python 3.11 or later, an account with one AI provider (an API key, a ChatGPT Plus or Pro plan, or a local model server such as Ollama), and an internet connection. We built and tested this on Windows 11 with Python 3.13. The engine is plain Python and the original runs on Windows, macOS and Linux, but we have not tried our additions on macOS or Linux.
+**You need** Python 3.11 or later, an account with one AI provider (an API key, a ChatGPT Plus or Pro plan, or a local model server such as Ollama), and an internet connection. We built and tested this on Windows 11 with Python 3.13. The engine is plain Python and the original runs on Windows, macOS and Linux. Our automated tests also pass on Linux with Python 3.11, 3.12, 3.13 and 3.14 (GitHub runs them on every change), but nobody has used our additions by hand on macOS or Linux.
 
 **1. Get the code.** With git, clone it and step into the new folder:
 
@@ -204,7 +204,7 @@ pip install -e ".[ui]"
 - **That our changes improve its calls.** Our tests (the selloff rules, the new data tools, the research panel, the analyst track-record study, the picker spot checks) show that the changes work as intended and did not wreck the ratings. They do not show better returns. [CHANGES-FROM-UPSTREAM.md](CHANGES-FROM-UPSTREAM.md#what-we-measured-and-what-we-have-not-shown) has the details.
 - **That two runs agree.** Language models are not deterministic, and the news and social sources change by the hour, so two runs of the same stock and date can differ. The five-pass median steadies borderline calls but does not remove the variation.
 - **That the free data is right.** Yahoo Finance's feeds are free and unofficial; they can be late, incomplete or wrong, and the reports say when something was missing.
-- **That it works everywhere.** See [Install](#install): macOS, Linux, Docker, and AI providers other than Anthropic are untried with our additions.
+- **That it works everywhere.** See [Install](#install): our tests pass on Linux, but nobody has used our additions by hand on macOS or Linux, and Docker and AI providers other than Anthropic are untried.
 
 ## Name, logo and trademark
 

@@ -39,7 +39,7 @@ The first release of Analyst Consortium: TradingAgents 0.7.1 with a sharper rese
 ### Known limits
 
 - We have not shown that any of this makes money or improves calls. A rating is an AI's reading of public data on one day, and this is a research tool, not financial advice. It never places a trade.
-- It was built and tested on Windows with Python 3.13 and Anthropic models. macOS, Linux, Docker and other AI providers are untried with our additions.
+- It was built and used on Windows with Python 3.13 and Anthropic models. Our automated tests also pass on Linux with Python 3.11 to 3.14, but nobody has used our additions by hand on macOS or Linux, and Docker and other AI providers are untried.
 - The command-line launchers for macOS and Linux (`tradingagents shortcut`) are untried.
 - PDF export needs Microsoft Edge or Google Chrome installed.
 
