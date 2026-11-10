@@ -331,6 +331,19 @@ def create_app(token: str, dotenv_path: Path | None = None, port: int | None = N
             return JSONResponse({"detail": "That analysis is not waiting or running."}, status_code=404)
         return {"stopped": job_id}
 
+    @app.post("/api/runs/{job_id}/remove")
+    async def remove_run(job_id: str):
+        """Take one finished, failed or stopped analysis off the list. Its saved report and run logs are left alone."""
+        if not run_tools.JOB_ID.fullmatch(job_id) or not await run_in_threadpool(manager().forget, job_id):
+            return JSONResponse({"detail": "That analysis is not on the list, or it is still waiting or running."},
+                                status_code=404)
+        return {"removed": job_id}
+
+    @app.post("/api/runs/clear-finished")
+    async def clear_finished_runs():
+        """Clear every finished, failed and stopped analysis from the list; waiting and running ones stay."""
+        return {"removed": await run_in_threadpool(manager().forget_finished)}
+
     @app.get("/api/runs/{job_id}/live")
     async def live_view(job_id: str, after: int = 0, have: str = ""):
         """New events since byte offset ``after``, each team member's state, and reports (text only when changed)."""

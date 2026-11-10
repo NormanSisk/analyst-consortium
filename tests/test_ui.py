@@ -469,6 +469,45 @@ class TestRunsApi:
         assert manager.get(job)["status"] == "stopped" and procs[0].killed
         assert c.post(f"/api/runs/{job}/cancel", headers=HEADERS).status_code == 404        # already over
 
+    def _wait_for(self, check):
+        import time
+        end = time.time() + 5
+        while not check() and time.time() < end:
+            time.sleep(0.01)
+        assert check()
+
+    def test_clearing_the_list_needs_the_token(self, dotenv, rig):
+        c = client(dotenv, runs=rig[0])
+        assert c.post("/api/runs/20261108-101010-abcd/remove").status_code == 401
+        assert c.post("/api/runs/clear-finished").status_code == 401
+        assert c.post("/api/runs/clear-finished", headers={**HEADERS, "Origin": "https://evil.example.com"}).status_code == 403
+
+    def test_a_stopped_analysis_can_be_removed_from_the_list_but_a_running_one_cannot(self, dotenv, rig):
+        manager, launches, _ = rig
+        c = client(dotenv, runs=manager)
+        job = c.post("/api/runs", headers=HEADERS, json=self.body()).json()["started"][0]
+        self._wait_for(lambda: launches)
+        assert c.post(f"/api/runs/{job}/remove", headers=HEADERS).status_code == 404        # still running
+        assert c.post(f"/api/runs/{job}/cancel", headers=HEADERS).status_code == 200
+        self._wait_for(lambda: manager.get(job)["status"] == "stopped")
+        assert c.post(f"/api/runs/{job}/remove", headers=HEADERS).json() == {"removed": job}
+        assert c.get("/api/runs", headers=HEADERS).json() == {"runs": []}
+        assert c.post(f"/api/runs/{job}/remove", headers=HEADERS).status_code == 404        # already gone
+
+    def test_the_finished_analyses_can_be_cleared_in_one_call(self, dotenv, rig):
+        manager, launches, _ = rig
+        c = client(dotenv, runs=manager)
+        first, second = c.post("/api/runs", headers=HEADERS, json=self.body(tickers=["NVDA", "MU"])).json()["started"]
+        self._wait_for(lambda: launches)
+        assert c.post(f"/api/runs/{second}/cancel", headers=HEADERS).status_code == 200      # waiting: stopped before it starts
+        assert c.post("/api/runs/clear-finished", headers=HEADERS).json() == {"removed": 1}
+        assert [j["id"] for j in c.get("/api/runs", headers=HEADERS).json()["runs"]] == [first]    # the running one stays
+        assert c.post("/api/runs/clear-finished", headers=HEADERS).json() == {"removed": 0}
+
+    @pytest.mark.parametrize("job_id", ["nope", "../../etc", "20261108-101010-zzzz", "20261108-101010-abcd"])
+    def test_removing_something_that_is_not_there_is_a_404(self, dotenv, rig, job_id):
+        assert client(dotenv, runs=rig[0]).post(f"/api/runs/{job_id}/remove", headers=HEADERS).status_code in (404, 405)
+
     @pytest.mark.parametrize("job_id", ["nope", "../../etc", "20261108-101010-zzzz", "20261108-101010-abcd"])
     def test_stopping_something_that_is_not_there_is_a_404(self, dotenv, rig, job_id):
         assert client(dotenv, runs=rig[0]).post(f"/api/runs/{job_id}/cancel", headers=HEADERS).status_code in (404, 405)

@@ -18,6 +18,7 @@ import json
 import os
 import re
 import secrets
+import shutil
 import signal
 import subprocess
 import sys
@@ -699,6 +700,50 @@ class RunManager:
         if proc is not None:
             self._kill(proc)            # outside the lock: ending a process tree can take a moment
         return True
+
+    def _delete_record(self, job_id: str) -> bool:
+        """Delete one analysis's record under ``ui-runs`` (its job file and console log). Saved reports, run logs and the
+        decision memory are elsewhere and are never touched. True when the record is gone (or was never there)."""
+        folder = self._dir(job_id)
+        if not JOB_ID.fullmatch(job_id) or folder.is_symlink():
+            return False
+        if not folder.exists():
+            return True
+        try:
+            shutil.rmtree(folder)
+        except OSError:
+            return False
+        return True
+
+    def forget(self, job_id: str) -> bool:
+        """Take one finished, failed or stopped analysis off the list and delete its record. False for an unknown id, one
+        that is waiting or running (stop it first), or one whose record could not be deleted (it stays listed)."""
+        with self._cv:
+            job = self._find(job_id)
+            if job is None or job.status in STATUS_ACTIVE or not self._delete_record(job_id):
+                return False
+            self._jobs.remove(job)
+            return True
+
+    def forget_finished(self) -> int:
+        """Clear every finished, failed and stopped analysis from the list, and delete the records of earlier ones that
+        are no longer shown (without that, they would come back at the next start). Waiting and running analyses stay.
+        Returns how many listed analyses were removed; one whose record cannot be deleted stays listed."""
+        with self._cv:
+            listed = {j.id for j in self._jobs}
+            removed = 0
+            for job in [j for j in self._jobs if j.status not in STATUS_ACTIVE]:
+                if self._delete_record(job.id):
+                    self._jobs.remove(job)
+                    removed += 1
+            try:
+                folders = [p.name for p in self.root.iterdir() if p.is_dir() and JOB_ID.fullmatch(p.name)]
+            except OSError:
+                folders = []
+            for name in folders:
+                if name not in listed:                  # an earlier record beyond the ones kept on the list
+                    self._delete_record(name)
+            return removed
 
     def shutdown(self) -> None:
         """End the running analysis and the queue (the server is closing)."""

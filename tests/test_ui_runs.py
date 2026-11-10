@@ -601,6 +601,105 @@ class TestQueue:
         assert saved["ticker"] == "NVDA" and saved["status"] == "done" and saved["result"]["rating"] == "Hold"
         assert "cancel_requested" not in saved
 
+    # ---- taking analyses off the list
+
+    @staticmethod
+    def _nvda_finishes_the_rest_wait(args, rig_):
+        command = args["command"]
+        return succeeding(args, rig_) if command[command.index("--ticker") + 1] == "NVDA" else FakeProc(0, hold=True)
+
+    def test_a_finished_analysis_can_be_taken_off_the_list_and_stays_off(self, rig):
+        r = rig(behave=succeeding)
+        job, = r.submit(tickers=["NVDA"])
+        r.wait(lambda: r.status(job) == "done")
+        record = r.results / "ui-runs" / job.id
+        assert record.is_dir()
+        assert r.manager.forget(job.id) is True
+        assert r.manager.listing() == [] and r.manager.get(job.id) is None and not record.exists()
+        again = rn.RunManager(r.results, launcher=lambda *a: FakeProc(0), start_worker=False)
+        assert again.listing() == []                                  # not back after a restart
+
+    def test_taking_an_analysis_off_the_list_leaves_its_reports_and_logs_alone(self, rig):
+        r = rig(behave=succeeding)
+        job, = r.submit(tickers=["NVDA"])
+        r.wait(lambda: r.status(job) == "done")
+        before = sorted(str(p.relative_to(r.results)) for p in r.results.rglob("*") if "ui-runs" not in p.parts)
+        assert before and r.manager.forget(job.id)
+        after = sorted(str(p.relative_to(r.results)) for p in r.results.rglob("*") if "ui-runs" not in p.parts)
+        assert after == before                                        # the saved report, state log and usage file stay
+
+    def test_an_active_or_unknown_analysis_cannot_be_taken_off_the_list(self, rig):
+        r = rig(behave=lambda a, rig_: FakeProc(0, hold=True))
+        running, waiting = r.submit(tickers=["NVDA", "MU"])
+        r.wait(lambda: r.status(running) == "running")
+        assert r.manager.forget(running.id) is False and r.manager.forget(waiting.id) is False
+        assert r.manager.forget("20261108-101010-abcd") is False
+        for bad in ("../ui-runs", "..", "not-a-job", ""):
+            assert r.manager.forget(bad) is False
+        assert len(r.manager.listing()) == 2 and (r.results / "ui-runs" / running.id).is_dir()
+        r.manager.cancel(waiting.id)
+        r.manager.cancel(running.id)
+        r.wait(lambda: r.status(running) == "stopped")
+
+    def test_a_failed_and_a_stopped_analysis_can_be_taken_off_too(self, rig):
+        r = rig(behave=lambda a, rig_: FakeProc(0, hold=True))
+        stopped, other = r.submit(tickers=["NVDA", "MU"])
+        r.wait(lambda: r.status(stopped) == "running")
+        r.manager.cancel(other.id)
+        r.manager.cancel(stopped.id)
+        r.wait(lambda: r.status(stopped) == "stopped")
+        assert r.manager.forget(other.id) and r.manager.forget(stopped.id) and r.manager.listing() == []
+
+    def test_clearing_the_finished_keeps_what_is_waiting_or_running(self, rig):
+        r = rig(behave=self._nvda_finishes_the_rest_wait)
+        done, = r.submit(tickers=["NVDA"])
+        r.wait(lambda: r.status(done) == "done")
+        running, waiting, dropped = r.submit(tickers=["MU", "AAPL", "IBM"])
+        r.wait(lambda: r.status(running) == "running")
+        r.manager.cancel(dropped.id)                                  # stopped before it started
+        assert r.manager.forget_finished() == 2                       # the done one and the stopped one
+        listed = {j["id"]: j["status"] for j in r.manager.listing()}
+        assert listed == {running.id: "running", waiting.id: "waiting"}
+        assert (r.results / "ui-runs" / running.id).is_dir() and not (r.results / "ui-runs" / done.id).exists()
+        r.manager.cancel(waiting.id)
+        r.manager.cancel(running.id)                                  # the running one still ends normally afterward
+        r.wait(lambda: r.status(running) == "stopped")
+        assert r.manager.forget_finished() == 2 and r.manager.listing() == []
+
+    def test_clearing_with_nothing_finished_does_nothing(self, rig):
+        r = rig(behave=lambda a, rig_: FakeProc(0, hold=True))
+        running, = r.submit(tickers=["NVDA"])
+        r.wait(lambda: r.status(running) == "running")
+        assert r.manager.forget_finished() == 0 and len(r.manager.listing()) == 1
+        r.manager.cancel(running.id)
+        r.wait(lambda: r.status(running) == "stopped")
+
+    def test_clearing_also_removes_earlier_records_that_are_no_longer_listed(self, tmp_path):
+        # Only the newest `keep` records are loaded; if the rest stayed, they would reappear after the list was cleared.
+        for i in range(5):
+            folder = tmp_path / "ui-runs" / f"20261108-10101{i}-abc{i}"
+            folder.mkdir(parents=True)
+            (folder / "job.json").write_text(json.dumps(make_job(id=folder.name, status="done").to_dict()), encoding="utf-8")
+        (tmp_path / "ui-runs" / "not-a-job").mkdir()
+        manager = rn.RunManager(tmp_path, keep=2, start_worker=False)
+        assert len(manager.listing()) == 2
+        assert manager.forget_finished() == 2
+        assert sorted(p.name for p in (tmp_path / "ui-runs").iterdir()) == ["not-a-job"]      # a folder that is not ours is left
+        assert rn.RunManager(tmp_path, start_worker=False).listing() == []
+
+    def test_a_record_that_cannot_be_deleted_stays_on_the_list(self, rig, monkeypatch):
+        r = rig(behave=succeeding)
+        job, = r.submit(tickers=["NVDA"])
+        r.wait(lambda: r.status(job) == "done")
+
+        def refuse(*args, **kwargs):
+            raise PermissionError("in use")
+
+        monkeypatch.setattr(rn.shutil, "rmtree", refuse)
+        assert r.manager.forget(job.id) is False
+        assert r.manager.forget_finished() == 0
+        assert [j["id"] for j in r.manager.listing()] == [job.id]
+
 
 @pytest.mark.unit
 class TestRealProcess:

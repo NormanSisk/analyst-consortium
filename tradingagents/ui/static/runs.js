@@ -196,6 +196,9 @@ function jobItem(j) {
     if (j.detail) body += `<details data-keep="${esc(j.id)}"${keepOpen[j.id] ? " open" : ""}><summary><span class="btn-like secondary">Show the last lines of the log</span></summary><pre>${esc(j.detail)}</pre></details>`;
     if (j.log) body += `<p class="hint">The whole log is in <code>${esc(j.log)}</code>.</p>`;
   }
+  if (ACTIVE.indexOf(j.status) < 0) {          // finished, failed or stopped: it can be taken off the list (its saved report stays)
+    body += `<div class="row"><button type="button" class="secondary" data-remove="${esc(j.id)}" data-name="${esc(j.ticker)}" aria-label="Remove ${esc(j.ticker)} for ${esc(j.date)} from the list">Remove from the list</button></div>`;
+  }
   const notes = (j.notes || []).map(n => `<p class="hint">${esc(n)}</p>`).join("");
   const slot = j.status === "waiting" ? "" : `<div class="live-slot" data-slot="${esc(j.id)}"></div>`;     // the live view lives here
   return `<li class="job job-${j.status}" data-job="${esc(j.id)}" data-sig="${esc(sig(j))}"><div class="job-head"><h3>${esc(j.ticker)} <span class="muted">for ${esc(j.date)}</span></h3>` +
@@ -222,7 +225,8 @@ function syncList(ul, items) {
 function renderRuns() {
   const first = jobs.slice(0, SHOWN), rest = jobs.slice(SHOWN);
   $("runs-empty").hidden = jobs.length > 0;
-  $("jobs-tools").hidden = !jobs.some(j => j.status === "done");
+  $("jobs-tools").hidden = !jobs.some(j => ACTIVE.indexOf(j.status) < 0);
+  $("save-all-csv").hidden = !jobs.some(j => j.status === "done");
   syncList($("runs"), first);
   $("runs-old").hidden = rest.length === 0;
   $("runs-old-label").textContent = "Earlier analyses (" + rest.length + ")";
@@ -438,6 +442,7 @@ async function refreshRuns() {
   let again = false;
   try {
     jobs = (await api("/api/runs")).runs;
+    Object.keys(liveState).forEach(id => { if (!jobs.some(j => j.id === id)) delete liveState[id]; });     // one taken off the list
     announce(); renderRuns();
     await liveTick();
     again = jobs.some(j => ACTIVE.indexOf(j.status) >= 0);
@@ -456,6 +461,28 @@ async function stopJob(btn) {
   await refreshRuns();
 }
 
+// Take one analysis, or every finished one, off the list. Only the list and its small record are removed:
+// saved reports, the run logs under the results folder and the decision memory stay where they are.
+async function removeFromList(btn) {
+  const all = !btn.dataset.remove, finished = jobs.filter(j => ACTIVE.indexOf(j.status) < 0);
+  if (all && !finished.length) return;
+  const ask = all
+    ? "Clear " + plural(finished.length, "analysis", "analyses") + " from this list? Your saved reports are not deleted, and anything waiting or running stays."
+    : "Remove the " + btn.dataset.name + " analysis from this list? Its saved report is not deleted.";
+  if (!window.confirm(ask)) return;
+  $("list-result").textContent = ""; $("list-error").textContent = "";
+  btn.disabled = true;
+  try {
+    const out = all ? await api("/api/runs/clear-finished", {}) : await api("/api/runs/" + encodeURIComponent(btn.dataset.remove) + "/remove", {});
+    const said = all ? "Cleared " + plural(out.removed, "analysis", "analyses") + " from the list. Your saved reports are still on your computer."
+                     : "Removed " + btn.dataset.name + " from the list. Its saved report is still on your computer.";
+    $("list-result").textContent = said; $("run-announce").textContent = said;
+  } catch (x) { $("list-error").textContent = "Could not remove it: " + x.message; }
+  btn.disabled = false;
+  await refreshRuns();
+  const heading = $("jobs-h"); heading.tabIndex = -1; heading.focus();          // the button that was pressed is gone
+}
+
 // ---------------------------------------------------------------- events
 document.addEventListener("ac-checks", e => { setupReady = e.detail.ready; setupError = !!e.detail.error; updateGate(); });
 document.addEventListener("toggle", e => {
@@ -468,6 +495,7 @@ document.addEventListener("click", e => {
   const t = e.target.closest("button"); if (!t) return;
   if (t.id === "go-config") { $("configure").open = true; $("configure").scrollIntoView({block: "start"}); $("configure").querySelector("summary").focus(); }
   if (t.dataset.stop) stopJob(t);
+  if (t.dataset.remove || t.id === "clear-finished") removeFromList(t);
   if (t.dataset.openReport) openReport(t.dataset.openReport);
   if (t.dataset.save) saveFile(t.dataset.save, [t.dataset.id], t.dataset.name);
   if (t.id === "save-all-csv") saveFile("csv", jobs.filter(j => j.status === "done").map(j => j.id), "analyses_" + (runOpts ? runOpts.today : "all"));
