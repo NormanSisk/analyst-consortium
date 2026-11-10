@@ -2,7 +2,7 @@ name: Release assets
 
 # Builds the source archive and wheel from the release tag and attaches them to
 # the GitHub release, so a version can be installed without cloning:
-#   pip install https://github.com/TauricResearch/TradingAgents/releases/download/<tag>/<wheel>
+#   pip install https://github.com/NormanSisk/analyst-consortium/releases/download/<tag>/<wheel>
 # Run it by hand with a tag to attach builds to an earlier release.
 
 on:

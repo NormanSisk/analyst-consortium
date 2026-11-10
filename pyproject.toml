@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "tradingagents"
 dynamic = ["version"]
-description = "TradingAgents: Multi-Agents LLM Financial Trading Framework"
+description = "Analyst Consortium: a multi-agent AI research tool for stocks, built on TradingAgents by Tauric Research"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
@@ -46,6 +46,11 @@ ui = [
     "fastapi>=0.115",
     "uvicorn>=0.30",
 ]
+
+[project.urls]
+Homepage = "https://github.com/NormanSisk/analyst-consortium"
+Issues = "https://github.com/NormanSisk/analyst-consortium/issues"
+"Original project (TradingAgents)" = "https://github.com/TauricResearch/TradingAgents"
 
 [project.scripts]
 tradingagents = "cli.main:app"
