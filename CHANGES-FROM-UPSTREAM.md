@@ -160,11 +160,11 @@ Compared with commit `c454491` (TradingAgents v0.7.1). A file that is not listed
 - `.env.example` (+1 -1)
 - `.github/ISSUE_TEMPLATE/bug-report.yml` (+1 -1)
 - `.github/ISSUE_TEMPLATE/config.yml` (+3 -3)
-- `.github/workflows/ci.yml` (+17 -1)
+- `.github/workflows/ci.yml` (+44 -1)
 - `.github/workflows/release-assets.yml` (+2 -2)
 - `.gitignore` (+6 -0)
 - `CHANGELOG.md` (+38 -1)
-- `README.md` (+125 -319)
+- `README.md` (+129 -317)
 - `cli/display.py` (+4 -3)
 - `cli/main.py` (+208 -2)
 - `cli/run.py` (+37 -5)
@@ -211,11 +211,11 @@ Compared with commit `c454491` (TradingAgents v0.7.1). A file that is not listed
 - `tradingagents/report_html.py` (+53 -19)
 - `tradingagents/reporting.py` (+5 -0)
 
-#### Files we added (117)
+#### Files we added (118)
 
 **Tests** (45)
 
-- `tests/fixtures/scorecard_nvda.json`
+- `tests/fixtures/scorecard_example.json`
 - `tests/picker_world.py`
 - `tests/test_changes_document.py`
 - `tests/test_company_statements.py`
@@ -346,10 +346,11 @@ Compared with commit `c454491` (TradingAgents v0.7.1). A file that is not listed
 - `tradingagents/assets/app-icon.ico`
 - `tradingagents/assets/app-icon.png`
 
-**Other program files** (8)
+**Other program files** (9)
 
 - `CHANGES-FROM-UPSTREAM.md`
 - `NOTICE`
+- `SECURITY.md`
 - `assets/analyst-consortium-logo-on-white.svg`
 - `tradingagents/csv_safe.py`
 - `tradingagents/doctor.py`
