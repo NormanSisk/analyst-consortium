@@ -44,6 +44,19 @@ def _own_file_locations():
 _own_file_locations()
 
 
+def _plain_command_help():
+    """Typer prints a command's help in colors and at a fixed width when it believes it runs on GitHub Actions (or
+    FORCE_COLOR or PY_COLORS is set), which splits words with control codes and wraps option names. The tests read the
+    plain text a person at an ordinary terminal sees, so those switches are cleared and the width is set wide.
+    Typer reads them when it is first imported, so this runs before any test imports the command line."""
+    for name in ("GITHUB_ACTIONS", "FORCE_COLOR", "PY_COLORS"):
+        os.environ.pop(name, None)
+    os.environ["TERMINAL_WIDTH"] = "200"
+
+
+_plain_command_help()
+
+
 def pytest_configure(config):
     for marker in ("unit", "integration", "smoke"):
         config.addinivalue_line("markers", f"{marker}: {marker}-level tests")

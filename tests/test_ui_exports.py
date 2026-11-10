@@ -3,6 +3,7 @@ and once with a real one when this computer has Chrome, Edge or Chromium)."""
 
 import csv
 import io
+import os
 import subprocess
 from pathlib import Path
 
@@ -203,5 +204,19 @@ class TestPdf:
         page = tmp_path / "complete_report.html"
         page.write_text("<html><head><meta charset='utf-8'></head><body><h1>Analyst Consortium</h1><p>Hold. 株価</p></body></html>",
                         encoding="utf-8")
-        data = ex.html_to_pdf(page, browser, timeout=120)
+        seen: list[subprocess.CompletedProcess] = []
+
+        def run(command, **kwargs):
+            if os.environ.get("CI"):
+                # GitHub's Linux runners do not allow the browser's own sandbox, so only there it is switched off;
+                # every other flag the program uses is still tried against the real browser.
+                command = [command[0], "--no-sandbox", *command[1:]]
+            seen.append(subprocess.run(command, **kwargs))      # noqa: S603
+            return seen[-1]
+
+        try:
+            data = ex.html_to_pdf(page, browser, timeout=120, run=run)
+        except ex.ExportError as error:                          # say what the browser itself said
+            said = (seen[-1].stderr or b"").decode("utf-8", "replace").strip()[-500:] if seen else "it never ran"
+            raise AssertionError(f"{error} Browser {browser} said: {said!r}") from None
         assert data.startswith(b"%PDF") and len(data) > 1000
