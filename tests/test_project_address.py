@@ -50,6 +50,8 @@ def test_the_readme_tells_people_to_clone_this_project():
 def test_the_tests_can_be_run_by_hand_from_the_actions_tab_as_well_as_on_a_push_to_main():
     ci = read(".github/workflows/ci.yml")
     assert "workflow_dispatch:" in ci and "branches: [main," in ci and "pull_request:" in ci
+    # A failed test is repeated where people who are not signed in can read it.
+    assert "if: failure()" in ci and "::error title=test failed::" in ci and "GITHUB_STEP_SUMMARY" in ci
 
 
 @pytest.mark.unit

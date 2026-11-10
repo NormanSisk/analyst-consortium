@@ -34,7 +34,22 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e ".[dev]"
       - name: Run test suite
-        run: pytest -q
+        env:
+          COLUMNS: "220"        # wide enough that a failure's summary line is not cut short
+        run: |
+          set -o pipefail
+          pytest -q -rfE 2>&1 | tee pytest.log
+      - name: List what failed
+        # GitHub shows a job's log only to people who are signed in. Annotations and the job summary
+        # are visible to everyone, so the failed tests are repeated there.
+        if: failure()
+        run: |
+          grep -E '^(FAILED|ERROR) ' pytest.log | sed 's/%/%25/g' | head -10 | sed 's/^/::error title=test failed::/' || true
+          {
+            echo '### Failed tests'
+            echo
+            grep -E '^(FAILED|ERROR) ' pytest.log | head -150 | sed 's/^/- `/; s/$/`/' || true
+          } >> "$GITHUB_STEP_SUMMARY"
 
   smoke-install:
     name: clean-install smoke
