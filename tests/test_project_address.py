@@ -41,6 +41,18 @@ def test_the_issue_links_name_this_project():
 
 
 @pytest.mark.unit
+def test_the_readme_tells_people_to_clone_this_project():
+    readme = read("README.md")
+    assert f"git clone {project.HOME_URL}.git" in readme and f"cd {project.REPO}" in readme
+
+
+@pytest.mark.unit
+def test_the_tests_can_be_run_by_hand_from_the_actions_tab_as_well_as_on_a_push_to_main():
+    ci = read(".github/workflows/ci.yml")
+    assert "workflow_dispatch:" in ci and "branches: [main," in ci and "pull_request:" in ci
+
+
+@pytest.mark.unit
 def test_nothing_under_github_points_at_the_original():
     for path in (ROOT / ".github").rglob("*"):
         if path.is_file() and path.suffix in {".yml", ".yaml", ".md"}:
@@ -103,4 +115,4 @@ def test_every_address_this_project_names_agrees_with_the_one_place():
                      ".github/ISSUE_TEMPLATE/config.yml", ".github/ISSUE_TEMPLATE/bug-report.yml",
                      ".github/workflows/release-assets.yml"):
         for name in pattern.findall(read(relative)):
-            assert name == project.REPO, (relative, name)
+            assert name.removesuffix(".git") == project.REPO, (relative, name)

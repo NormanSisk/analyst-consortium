@@ -41,7 +41,14 @@ The changes to the analysis can each be switched back to the original's behavior
 
 **You need** Python 3.11 or later, an account with one AI provider (an API key, a ChatGPT Plus or Pro plan, or a local model server such as Ollama), and an internet connection. We built and tested this on Windows 11 with Python 3.13. The engine is plain Python and the original runs on Windows, macOS and Linux, but we have not tried our additions on macOS or Linux.
 
-**1. Get the code,** either with `git clone` and the address on this repository's page, or with the green Code button and Download ZIP. Then open a terminal in the folder.
+**1. Get the code.** With git, clone it and step into the new folder:
+
+```bash
+git clone https://github.com/NormanSisk/analyst-consortium.git
+cd analyst-consortium
+```
+
+Or use the green Code button on the repository's page, choose Download ZIP, unzip it and open a terminal in that folder.
 
 **2. Make a private Python environment inside it:**
 
