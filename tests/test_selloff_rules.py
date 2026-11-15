@@ -1,5 +1,6 @@
 """The selloff rules (a local addition): they reach every debater and both managers, and one switch removes them."""
 
+from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
@@ -165,12 +166,70 @@ class TestRules:
         text = selloff.CORE
         rule_2 = text.split("2. ", 1)[1].split("\n3. ", 1)[0]
         assert "insider selling" in rule_2 and "a filing whose content the reports do not give" in rule_2
-        assert '"unresolved"' in rule_2 and "do not count it as deterioration" in rule_2
+        assert '"unresolved"' in rule_2 and "do not count either as deterioration or as improvement" in rule_2
         # real deterioration still counts against the company, and still fails condition (c)
         for evidence in ("estimates or guidance cut", "results that missed", "a falling margin", "a drop in operating cash flow",
                          "dilution", "a weaker balance sheet"):
             assert evidence in rule_2
         assert "deterioration evidence does" in text and "unresolved signals do not fail it" in text
+
+    def test_planned_sales_and_buying_clusters_are_mirrored_signals_that_never_count_as_evidence_or_move_a_rating(self):
+        rule_2 = selloff.CORE.split("2. ", 1)[1].split("\n3. ", 1)[0]
+        assert "pre-arranged Rule 10b5-1 plan, which was set long before and tells you least" in rule_2
+        assert 'a cluster of insider buying (the insider report\'s "Cluster" line: three or more different insiders buying on the open ' \
+               "market within 30 days" in rule_2
+        assert "a buying cluster for a larger or earlier first step" in rule_2 and "neither alone moves a rating" in rule_2
+        assert "A planned sale and a sale that follows a vesting or an option exercise carry no weight " \
+               "on their own, and no insider trades at all is neutral" in rule_2
+        assert "(rule 2; unresolved signals do not fail it, deterioration evidence does)" in selloff.CORE      # condition (c) is unchanged
+        assert "cluster line's figures and call it an unresolved signal" in selloff.ROLE_LINES["bull"]
+        assert "a planned sale carries little weight" in selloff.ROLE_LINES["bear"]
+
+    def test_insider_signals_age_so_only_recent_trades_are_live_and_a_stale_cluster_does_not_count(self):
+        rule_2 = selloff.CORE.split("2. ", 1)[1].split("\n3. ", 1)[0]
+        assert "Count age from the trade date, as the insider report's \"days ago\" figures give it" in rule_2
+        assert "A purchase in the last 60 days is the live signal; one 60 to 180 days old is context only and is not called recent" in rule_2
+        assert "nothing older is used" in rule_2
+        assert "A cluster counts only when the report's Cluster line names one that ended within the last 90 days" in rule_2
+        assert "smaller companies" in rule_2                                  # the signal is mostly in small firms, so large ones carry less
+        assert "insiders" in rule_2 and "neither alone moves a rating" in rule_2     # ageing does not make an insider signal move a rating
+
+    def test_the_newest_unplanned_action_sets_the_direction_and_a_same_insider_sale_reverses_a_purchase(self):
+        rule_2 = selloff.CORE.split("2. ", 1)[1].split("\n3. ", 1)[0]
+        assert 'The newest unplanned action sets the direction, and the report\'s "Latest move" line names it' in rule_2
+        assert "a sale that follows the same insider's own purchase reverses that purchase" in rule_2
+        assert 'the "Sold after buying" line names them, and their purchases are left out of the Cluster line' in rule_2
+        assert "a later sale by a different insider is a separate decision that weakens earlier buying without cancelling it" in rule_2
+        assert "a sale the report marks as planned does not change the direction" in rule_2
+        assert "dollar total over a window ignores order" in rule_2
+        assert "Latest move line shows a later sale" in selloff.ROLE_LINES["bull"]
+        assert "Sold after buying line" in selloff.ROLE_LINES["bear"] and "reverses the purchase" in selloff.ROLE_LINES["bear"]
+
+    def test_a_single_purchase_carries_some_weight_graded_by_the_share_it_adds_to_the_buyers_holding(self):
+        rule_2 = selloff.CORE.split("2. ", 1)[1].split("\n3. ", 1)[0]
+        assert "A single open-market purchase is the insider's own choice with their own money, so it carries some weight, graded by the " \
+               'share it added to what the buyer already owned (the report\'s "Purchase size" line and its "Change that day" column)' in rule_2
+        assert "a large one (10% or more) is a larger signal, a modest one (1% to 10%) a smaller one, and a token one (under 1%) is noted " \
+               "and nothing more" in rule_2
+        assert "dollar size alone is not the measure" in rule_2 and "or reversed by a later sale carries none" in rule_2
+        assert "still a signal, not evidence" in rule_2 and "alone it moves no rating" in rule_2          # some weight, but it moves no rating alone
+        assert "no weight on their own" in rule_2 and "One insider's single purchase" not in rule_2        # the old blanket exclusion is gone
+        assert "Cite a lone purchase by its grade on the Purchase size line, never as a cluster" in selloff.ROLE_LINES["bull"]
+
+    def test_a_cluster_the_report_calls_likely_routine_is_not_a_cluster(self):
+        rule_2 = selloff.CORE.split("2. ", 1)[1].split("\n3. ", 1)[0]
+        assert 'a cluster that the report\'s "Cluster note" calls likely routine (many insiders buying at exactly one price on the same day, ' \
+               "as a scheduled purchase program does) is not a cluster: it carries no weight and is not named as a signal" in rule_2
+        assert "do not cite a cluster that the Cluster note calls likely routine" in selloff.ROLE_LINES["bull"]
+
+    def test_the_insider_wording_for_the_analyst_and_the_tool_use_the_same_ages(self):
+        from tradingagents.agents.analysts import fundamentals_analyst
+        from tradingagents.dataflows.vendors import sec_insiders
+        source = Path(fundamentals_analyst.__file__).read_text(encoding="utf-8")
+        assert "unless it is within the last 60 days" in source
+        assert "'Latest move' and 'Sold after buying' lines" in source and "when the same insider has sold since" in source
+        assert "'Cluster note' calls a cluster likely routine" in source and "give the report's 'Purchase size' line" in source
+        assert sec_insiders.LIVE_DAYS == 60 and sec_insiders.CLUSTER_RECENT_DAYS == 90
 
     def test_the_survival_test_and_the_valuation_condition_are_as_strict_as_before(self):
         text = selloff.CORE

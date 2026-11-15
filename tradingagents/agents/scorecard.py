@@ -102,15 +102,20 @@ def build_scorecard(outputs: dict[str, str], analysis: evidence.Analysis | None 
 
     # C2. signals that need confirming
     u = []
-    for pattern in (r"- (Open-market purchases: .*?)\.(?= - [A-Z])", r"- (Open-market sales: .*?)\.(?= - [A-Z])"):
+    # The insider report's summary: purchases and sales (left out when there were none, which is neutral), how many sales were made
+    # under a pre-arranged plan, and a cluster of different insiders buying (named only when there is one).
+    for pattern in (r"- (Open-market purchases: .*?)\.(?= - [A-Z])", r"- (Open-market sales: .*?)\.(?= - [A-Z])",
+                    r"- (Planned sales: .*?Rule 10b5-1 plan)", r"- (Latest move: .*?)\.(?= - [A-Z])",
+                    r"- (Sold after buying: .*?)\.(?= - [A-Z])", r"- (Cluster: \d+ different insiders .*?)\.(?= - [A-Z])",
+                    r"- (Cluster note: .*?)\.(?= - [A-Z])", r"- (Purchase size: .*?)\.(?= - [A-Z])"):
         value = _first(pattern, ins)
-        if value:
+        if value and not re.match(r"Open-market (purchases|sales): 0,|Latest move: none", value):
             u.append(value)
     f = _first(r"Flags to state in the report\s*-\s*(.*?)$", fil)
     if f:
         u.append("Filings: " + f.split(": these usually")[0])
     if u:
-        out.append(("C2. Unresolved signals (not evidence of deterioration until confirmed)", " | ".join(u)))
+        out.append(("C2. Unresolved signals (not evidence of deterioration, or of improvement, until confirmed)", " | ".join(u)))
 
     # D. survival inputs
     d = []

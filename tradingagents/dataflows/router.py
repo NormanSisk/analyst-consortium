@@ -45,6 +45,9 @@ from tradingagents.dataflows.vendors.sec_edgar import (
 from tradingagents.dataflows.vendors.sec_filing_events import (
     get_filing_events as get_sec_filing_events,
 )
+from tradingagents.dataflows.vendors.sec_insiders import (
+    get_insider_transactions as get_sec_insider_transactions,
+)
 from tradingagents.dataflows.vendors.yahoo.earnings import (
     get_earnings_facts as get_yfinance_earnings_facts,
 )
@@ -225,6 +228,7 @@ VENDOR_METHODS = {
     },
     "get_insider_transactions": {
         "alpha_vantage": get_alpha_vantage_insider_transactions,
+        "sec_edgar": get_sec_insider_transactions,
         "quiver": get_quiver_insider_transactions,
         "yfinance": get_yfinance_insider_transactions,
     },

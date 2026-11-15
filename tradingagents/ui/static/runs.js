@@ -52,7 +52,7 @@ function updateDateNote() {
   const note = $("r-date-note"), v = $("r-date").value;
   const past = runOpts && v && v < runOpts.today;
   note.hidden = !past;
-  note.textContent = past ? "NOTE: this is not today. Data that only exists for today (the company profile, insider trades and financial statements) is left out of an earlier-dated run, so the analysis is thinner." : "";
+  note.textContent = past ? "NOTE: this is not today. Data that only exists for today (the company profile, and for a company that does not file with the SEC its insider trades and financial statements) is left out of an earlier-dated run, so the analysis is thinner." : "";
 }
 
 function updateStyleHint() { const x = runOpts.styles.find(s => s.id === $("r-style").value); $("h-style").textContent = x ? x.help : ""; }

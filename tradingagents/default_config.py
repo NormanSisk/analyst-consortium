@@ -165,7 +165,7 @@ def build_default_config() -> dict:
             "core_stock_apis": "yfinance",       # Options: alpha_vantage, yfinance
             "technical_indicators": "yfinance",  # Options: alpha_vantage, yfinance
             # Statements come from SEC EDGAR as filed (US filers), then Yahoo; the
-        # overview and insider tools, which SEC EDGAR does not serve, from Yahoo.
+        # company overview, which SEC EDGAR does not serve, from Yahoo. (Insider trades: see tool_vendors below.)
         "fundamental_data": "sec_edgar,yfinance",  # Options: sec_edgar, alpha_vantage, yfinance
             "news_data": "yfinance",             # Options: alpha_vantage, yfinance
             "macro_data": "fred",                # Options: fred (needs FRED_API_KEY)
@@ -188,8 +188,9 @@ def build_default_config() -> dict:
         # Tool-level configuration (takes precedence over category-level)
         "tool_vendors": {
             # Example: "get_stock_data": "alpha_vantage",  # Override category default
-            # Quiver's Form 4 data first (needs QUIVER_API_KEY); Yahoo answers when Quiver cannot.
-            "get_insider_transactions": "quiver,yfinance",
+            # Form 4 filings straight from SEC EDGAR first (free, dated by filing day, so past runs are served too);
+            # Quiver's copy (needs QUIVER_API_KEY) next, then Yahoo, which answers when the others cannot.
+            "get_insider_transactions": "sec_edgar,quiver,yfinance",
         },
         # Benchmark for alpha calculation in the reflection layer.
         # ``benchmark_ticker`` (when set) overrides the suffix map for all

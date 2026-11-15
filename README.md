@@ -137,11 +137,11 @@ Add `--help` to any of them for the options. After a borderline call the bare co
 | Source | What for | Key |
 | --- | --- | --- |
 | Yahoo Finance | prices, statements, options, news, the stock picker | none |
-| SEC EDGAR | company filings and statements as originally filed | none; set `SEC_EDGAR_USER_AGENT` to your name and address, as the SEC asks |
+| SEC EDGAR | company filings and statements as originally filed, and insiders' Form 4 trades | none; set `SEC_EDGAR_USER_AGENT` to your name and address, as the SEC asks |
 | FINRA, USAspending, ClinicalTrials.gov, FDA recalls | short-sale data and public records | none |
 | StockTwits and Reddit | the sentiment analyst | none |
 | FRED | credit spreads, financial conditions, next data releases | `FRED_API_KEY`, free |
-| Quiver | Congress trades and insider trades | `QUIVER_API_KEY` |
+| Quiver | Congress trades (and a second copy of insider trades, used when EDGAR cannot answer) | `QUIVER_API_KEY` |
 | Alpha Vantage | earnings call transcripts | `ALPHA_VANTAGE_API_KEY` |
 | TypeSafe Jev | screens social posts before the sentiment analyst reads them | `TYPESAFE_API_KEY`, optional |
 
