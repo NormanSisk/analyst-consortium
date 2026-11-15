@@ -419,7 +419,7 @@ def _structured_sentiment_llm(captured: dict, report: SentimentReport | None = N
         report = SentimentReport(
             overall_band=SentimentBand.BULLISH, overall_score=7.5,
             confidence="high",
-            narrative="StockTwits 75% bullish. News constructive. Reddit upbeat.",
+            narrative="StockTwits 75% bullish. News constructive. Bluesky upbeat.",
         )
     structured = MagicMock()
     structured.invoke.side_effect = lambda prompt: (
@@ -436,15 +436,15 @@ class TestSentimentAnalystAgent:
     def _stub_prefetched_sources(self, monkeypatch):
         """Stub the sources the analyst pre-fetches before prompting.
 
-        create_sentiment_analyst fetches news, StockTwits and Reddit itself, so
-        without this these tests hit the live network. A real Reddit 429 then
-        backs the fetcher off for a minute per subreddit, which is what turned
-        this file into a multi-minute hang.
+        create_sentiment_analyst fetches news, StockTwits and Bluesky itself, so
+        without this these tests hit the live network (and a rate-limited source
+        once backed off for a minute per request, which turned this file into a
+        multi-minute hang).
         """
         from tradingagents.agents.analysts import sentiment_analyst as sentiment
 
         monkeypatch.setattr(sentiment, "fetch_stocktwits_messages", lambda *a, **k: "st")
-        monkeypatch.setattr(sentiment, "fetch_reddit_posts", lambda *a, **k: "rd")
+        monkeypatch.setattr(sentiment, "fetch_bluesky_posts", lambda *a, **k: "bs")
         monkeypatch.setattr(sentiment.get_news, "func", lambda *a, **k: "news", raising=False)
 
     def test_structured_path_produces_rendered_markdown(self):

@@ -114,7 +114,7 @@ def offline(monkeypatch, tmp_path):
     monkeypatch.setattr(snapshot, "load_ohlcv",
                         lambda *a, **k: called.add("ohlcv") or prices.copy())
     monkeypatch.setattr(sentiment_analyst, "fetch_stocktwits_messages", lambda *a, **k: "no posts")
-    monkeypatch.setattr(sentiment_analyst, "fetch_reddit_posts", lambda *a, **k: "no posts")
+    monkeypatch.setattr(sentiment_analyst, "fetch_bluesky_posts", lambda *a, **k: "no posts")
     monkeypatch.setattr(yahoo_market.yf, "Ticker", lambda s: type("T", (), {"info": {"longName": "NVIDIA"}})())
     context._identity.cache_clear()
     return called

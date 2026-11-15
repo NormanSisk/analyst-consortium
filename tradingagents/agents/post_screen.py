@@ -1,7 +1,7 @@
 """Social-post screening with TypeSafe's Jev, when ``TYPESAFE_API_KEY`` is set.
 
 Jev answers typed questions with calibrated probabilities. Each StockTwits or
-Reddit post is asked two: is it about the instrument, and which way does it
+Bluesky post is asked two: is it about the instrument, and which way does it
 lean on the instrument's stock. Code turns the answers into what the Sentiment
 Analyst reads: posts that are clearly about something else are dropped, and a
 stance count over the rest heads the source's block.

@@ -5,7 +5,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Data is served as of the analysis date: a historical run does not see later prices, filings or news, and some sources (news, StockTwits, Reddit) only serve recent items. A report that says a source is unavailable for a past window is expected.
+        Data is served as of the analysis date: a historical run does not see later prices, filings or news, and some sources (news, StockTwits) only serve recent items. A report that says a source is unavailable for a past window is expected.
   - type: input
     id: symbol
     attributes:
@@ -29,7 +29,7 @@ body:
         - Prices or indicators
         - Fundamentals or statements
         - News
-        - Social (StockTwits, Reddit)
+        - Social (StockTwits, Bluesky)
         - Macro (FRED)
         - Insider transactions
         - Prediction markets

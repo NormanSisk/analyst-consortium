@@ -631,7 +631,7 @@ def build_checks(ctx: Context) -> list[Check]:
         Check("data.openfda", "data", "openFDA (drug recalls)", _simple_probe(
             "openFDA", "https://api.fda.gov/drug/enforcement.json", {"limit": "1"}), False, "FDA recalls"),
         Check("data.stocktwits", "data", "StockTwits (social posts)", _stocktwits_probe(), False, "social sentiment"),
-        Check("data.reddit", "data", "Reddit (social posts)", _reddit_probe(), False, "social sentiment"),
+        Check("data.bluesky", "data", "Bluesky (social posts)", _bluesky_probe(), False, "social sentiment"),
         Check("data.ibkr", "data", "Interactive Brokers helper", check_ibkr, False, "IBKR option and volume statistics"),
         Check("settings.passes", "settings", "Research passes and cost", check_passes),
         Check("settings.selloff", "settings", "Selloff rules", _switch(
@@ -655,13 +655,13 @@ def _stocktwits_probe():
     return check
 
 
-def _reddit_probe():
+def _bluesky_probe():
     def check(ctx: Context):
         if (skip := _need_net(ctx)):
             return skip
-        from tradingagents.dataflows.vendors import reddit
-        return _simple_probe("Reddit", reddit._RSS.format(sub="stocks", qs="q=AAPL&restrict_sr=1&limit=1"),
-                             headers={"User-Agent": reddit._UA})(ctx)
+        from tradingagents.dataflows.vendors import bluesky
+        return _simple_probe("Bluesky", bluesky._API, {"q": "$AAPL", "limit": "1"},
+                             headers={"User-Agent": bluesky._UA, "Accept": "application/json"})(ctx)
     return check
 
 

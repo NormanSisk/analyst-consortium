@@ -5,12 +5,12 @@ prompt, so the model reports on data it was given rather than inventing posts:
 
   1. News headlines: Yahoo Finance
   2. StockTwits messages: the cashtag stream, with Bullish/Bearish tags
-  3. Reddit posts: r/wallstreetbets, r/stocks, r/investing, or crypto communities for a crypto pair
+  3. Bluesky posts: the public cashtag search, read day by day (Reddit ended its feeds on 2026-11-13)
 
 Each source is trimmed to the analysis window. With a TypeSafe key, the social
-posts are screened by Jev first (see post_screen). These feeds serve recent items
-and are not archived, so a historical run's sentiment inputs are not
-point-in-time.
+posts are screened by Jev first (see post_screen). News and StockTwits serve recent
+items and are not archived, so a historical run's inputs from them are not
+point-in-time; Bluesky can be asked for a past window.
 
 The report is a SentimentReport through structured output where the provider
 supports it and free text otherwise, so the band, score and confidence header
@@ -22,7 +22,11 @@ from datetime import datetime, timedelta
 from langchain_core.messages import AIMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 
-from tradingagents.agents.context import get_instrument_context_from_state, get_language_instruction
+from tradingagents.agents.context import (
+    get_instrument_context_from_state,
+    get_language_instruction,
+    resolve_instrument_identity,
+)
 from tradingagents.agents.post_screen import jev_screen
 from tradingagents.agents.schemas import SentimentReport, render_sentiment_report
 from tradingagents.agents.structured import (
@@ -31,12 +35,7 @@ from tradingagents.agents.structured import (
     invoke_structured_or_freetext,
 )
 from tradingagents.agents.tools import get_news
-from tradingagents.dataflows.vendors.reddit import (
-    CRYPTO_SUBREDDITS,
-    DEFAULT_SUBREDDITS,
-    fetch_reddit_posts,
-    subreddits_for,
-)
+from tradingagents.dataflows.vendors.bluesky import fetch_bluesky_posts
 from tradingagents.dataflows.vendors.stocktwits import fetch_stocktwits_messages
 
 
@@ -47,7 +46,7 @@ def _seven_days_back(trade_date: str) -> str:
 def create_sentiment_analyst(llm):
     """Create a sentiment analyst node for the trading graph.
 
-    Pre-fetches news + StockTwits + Reddit data, injects them into the
+    Pre-fetches news + StockTwits + Bluesky data, injects them into the
     prompt as structured blocks, and produces a deterministic sentiment
     report via structured output (with a free-text fallback for providers
     that do not support it).
@@ -70,9 +69,11 @@ def create_sentiment_analyst(llm):
         stocktwits_block = fetch_stocktwits_messages(
             ticker, limit=30, start_date=start_date, end_date=end_date, screen=screen
         )
-        subreddits = subreddits_for(ticker)
-        reddit_block = fetch_reddit_posts(
-            ticker, subreddits, start_date=start_date, end_date=end_date, screen=screen
+        # The company name is looked up only if a ticker that is also a common word
+        # needs it to be told apart (the run start already cached it).
+        bluesky_block = fetch_bluesky_posts(
+            ticker, start_date=start_date, end_date=end_date, screen=screen,
+            name_of=lambda: resolve_instrument_identity(ticker).get("company_name"),
         )
 
         system_message = _build_system_message(
@@ -81,8 +82,7 @@ def create_sentiment_analyst(llm):
             end_date=end_date,
             news_block=news_block,
             stocktwits_block=stocktwits_block,
-            reddit_block=reddit_block,
-            subreddits=subreddits,
+            bluesky_block=bluesky_block,
         )
 
         prompt = ChatPromptTemplate.from_messages(
@@ -134,16 +134,9 @@ def _build_system_message(
     end_date: str,
     news_block: str,
     stocktwits_block: str,
-    reddit_block: str,
-    subreddits: tuple[str, ...] = DEFAULT_SUBREDDITS,
+    bluesky_block: str,
 ) -> str:
     """Assemble the sentiment-analyst system message with structured data blocks."""
-    if subreddits == DEFAULT_SUBREDDITS:
-        character = "r/wallstreetbets is often contrarian/exuberant; r/stocks more measured; r/investing longer-term"
-    elif len(subreddits) > len(CRYPTO_SUBREDDITS):
-        character = f"r/{subreddits[0]} leans toward the coin's holders; r/CryptoCurrency and r/CryptoMarkets are broader"
-    else:
-        character = "r/CryptoCurrency and r/CryptoMarkets are broad crypto communities"
     return f"""You are a financial market sentiment analyst. Your task is to produce a comprehensive sentiment report for {ticker} covering the period from {start_date} to {end_date}, drawing on three complementary data sources that have already been collected for you.
 
 ## Data sources (pre-fetched, in this prompt)
@@ -162,12 +155,12 @@ Fast-moving signal. Each message carries a user-labeled sentiment tag (Bullish /
 {stocktwits_block}
 <end_of_stocktwits>
 
-### Reddit posts — {", ".join(f"r/{sub}" for sub in subreddits)} (past 7 days)
-Community discussion, without vote or comment counts. Subreddit character matters ({character}).
+### Bluesky posts — public cashtag search (past 7 days)
+Open social posts that carry the stock's cashtag, read day by day, with no stance tags and no engagement counts. Many are headline reposts from news and bot accounts, so they are closer to the news than to retail opinion; weigh a post by its substance and by whether it is the author's own view.
 
-<start_of_reddit>
-{reddit_block}
-<end_of_reddit>
+<start_of_bluesky>
+{bluesky_block}
+<end_of_bluesky>
 
 ## How to analyze this data (best practices)
 
@@ -175,13 +168,13 @@ Community discussion, without vote or comment counts. Subreddit character matter
 
 2. **Look for cross-source divergences.** If news framing is bearish but StockTwits is overwhelmingly bullish, that mismatch is itself a signal — it can mean retail is leaning into a thesis the news flow hasn't caught up to (or vice versa, that retail is chasing while institutions are cautious).
 
-3. **Read Reddit posts for substance.** The feed carries no vote or comment counts, so judge a post by its body excerpt, not its title alone, and do not infer engagement.
+3. **Read Bluesky posts for substance.** The block carries no engagement counts, so do not infer how widely a post was read. Use the posts-per-day counts as a rough gauge of attention (a day marked + had more posts than were read), and separate a repost of a headline from a person's own view.
 
 4. **Distinguish opinion from event.** A news headline ("Nvidia announces $500M Corning deal") is an event; a StockTwits post ("buying NVDA, this is going to moon") is opinion. Both are inputs but should be weighted differently in your conclusions.
 
 5. **Identify recurring narrative themes.** What topic keeps coming up across sources? That's the dominant narrative driving current sentiment.
 
-6. **Be honest about data limits.** If StockTwits returned only a handful of messages, or one or more sources returned an "<unavailable>" placeholder, the sentiment read is less robust — flag this explicitly in the `confidence` field and the narrative. If the sources are silent on a given subreddit, say so.
+6. **Be honest about data limits.** If StockTwits returned only a handful of messages, or one or more sources returned an "<unavailable>" placeholder, the sentiment read is less robust — flag this explicitly in the `confidence` field and the narrative. If a source is silent on the stock, say so.
 
 7. **Identify catalysts and risks** that emerge across sources — news of upcoming earnings, product launches, competitive threats, macro headlines, etc.
 

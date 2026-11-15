@@ -319,7 +319,7 @@ class TestDataSources:
         assert report.ready      # none of them is required
 
     def test_a_rate_limit_is_explained_as_a_wait_not_a_breakage(self, tmp_path):
-        r = by_id(run(make_ctx(tmp_path, http=FakeHttp({"reddit.com": 429}))), "data.reddit")
+        r = by_id(run(make_ctx(tmp_path, http=FakeHttp({"api.bsky.app": 429}))), "data.bluesky")
         assert r.status == dr.NOT_WORKING and "limiting requests" in r.detail and "Wait a few minutes" in r.fix and not r.required
 
     def test_the_ibkr_helper_is_off_unless_configured(self, tmp_path):

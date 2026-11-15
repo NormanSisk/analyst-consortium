@@ -112,7 +112,7 @@ def test_sentiment_prompt_states_constraint(monkeypatch):
 
     # Pre-fetched sources are stubbed so the prompt builds without network I/O.
     monkeypatch.setattr(sentiment, "fetch_stocktwits_messages", lambda *a, **k: "st")
-    monkeypatch.setattr(sentiment, "fetch_reddit_posts", lambda *a, **k: "rd")
+    monkeypatch.setattr(sentiment, "fetch_bluesky_posts", lambda *a, **k: "bs")
     monkeypatch.setattr(sentiment.get_news, "func", lambda *a, **k: "news", raising=False)
 
     captured = {}
@@ -149,11 +149,13 @@ def test_constraint_text_is_unambiguous():
 
 
 @pytest.mark.unit
-def test_the_sentiment_prompt_names_the_subreddits_searched(monkeypatch):
+def test_the_sentiment_prompt_carries_the_bluesky_block_in_reddits_place(monkeypatch):
     from tradingagents.agents.schemas import SentimentBand, SentimentReport
 
+    asked = {}
     monkeypatch.setattr(sentiment, "fetch_stocktwits_messages", lambda *a, **k: "st")
-    monkeypatch.setattr(sentiment, "fetch_reddit_posts", lambda *a, **k: "rd")
+    monkeypatch.setattr(sentiment, "fetch_bluesky_posts",
+                        lambda ticker, **k: asked.update(ticker=ticker, **k) or "BLUESKY-BLOCK-TEXT")
     monkeypatch.setattr(sentiment.get_news, "func", lambda *a, **k: "news", raising=False)
     captured = {}
     llm = _capturing_llm(captured, SentimentReport(
@@ -164,5 +166,7 @@ def test_the_sentiment_prompt_names_the_subreddits_searched(monkeypatch):
         "asset_type": "crypto", "messages": [],
     })
     text = _prompt_text(captured["prompt"])
-    assert "r/Bitcoin, r/CryptoCurrency, r/CryptoMarkets" in text
-    assert "wallstreetbets" not in text
+    assert "<start_of_bluesky>\nBLUESKY-BLOCK-TEXT\n<end_of_bluesky>" in text
+    assert asked["ticker"] == "BTC-USD" and (asked["start_date"], asked["end_date"]) == ("2026-01-08", "2026-01-15")
+    assert "no engagement counts" in text
+    assert "reddit" not in text.lower() and "subreddit" not in text.lower()

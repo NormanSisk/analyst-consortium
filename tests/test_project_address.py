@@ -12,7 +12,7 @@ from pathlib import Path
 import pytest
 
 from tradingagents import project
-from tradingagents.dataflows.vendors import reddit, stocktwits
+from tradingagents.dataflows.vendors import bluesky, stocktwits
 
 ROOT = Path(__file__).resolve().parent.parent
 HOME = "https://github.com/NormanSisk/analyst-consortium"
@@ -97,8 +97,8 @@ def test_no_program_file_contacts_the_originals_servers():
 
 
 @pytest.mark.unit
-def test_reddit_and_stocktwits_are_told_who_is_calling():
-    for module in (reddit, stocktwits):
+def test_bluesky_and_stocktwits_are_told_who_is_calling():
+    for module in (bluesky, stocktwits):
         assert module._UA == project.USER_AGENT
     assert project.HOME_URL in project.USER_AGENT and UPSTREAM not in project.USER_AGENT
     assert project.USER_AGENT.isascii() and "\n" not in project.USER_AGENT
