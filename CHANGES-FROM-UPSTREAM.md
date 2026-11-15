@@ -156,16 +156,17 @@ Your keys (`.env`), holdings file, run logs and reports, the picks log, caches a
 
 Compared with commit `c454491` (TradingAgents v0.7.1). A file that is not listed here is unchanged.
 
-#### Upstream files we modified (54)
+#### Upstream files we modified (61)
 
 - `.dockerignore` (+6 -0)
-- `.env.example` (+1 -1)
+- `.env.example` (+2 -2)
 - `.github/ISSUE_TEMPLATE/bug-report.yml` (+1 -1)
 - `.github/ISSUE_TEMPLATE/config.yml` (+3 -3)
+- `.github/ISSUE_TEMPLATE/data-issue.yml` (+2 -2)
 - `.github/workflows/ci.yml` (+44 -1)
 - `.github/workflows/release-assets.yml` (+2 -2)
 - `.gitignore` (+6 -0)
-- `CHANGELOG.md` (+45 -1)
+- `CHANGELOG.md` (+83 -1)
 - `README.md` (+129 -317)
 - `cli/display.py` (+4 -3)
 - `cli/main.py` (+208 -2)
@@ -178,17 +179,23 @@ Compared with commit `c454491` (TradingAgents v0.7.1). A file that is not listed
 - `tests/test_cli_commands.py` (+2 -1)
 - `tests/test_cli_headless.py` (+1 -1)
 - `tests/test_cli_updates.py` (+68 -105)
-- `tests/test_graph_end_to_end.py` (+52 -3)
+- `tests/test_graph_end_to_end.py` (+53 -4)
 - `tests/test_memory_log.py` (+2 -2)
+- `tests/test_post_screen.py` (+1 -1)
 - `tests/test_report_html.py` (+79 -16)
+- `tests/test_social_lookahead.py` (+49 -112)
+- `tests/test_structured_agent_prompts.py` (+9 -5)
+- `tests/test_structured_agents.py` (+6 -6)
 - `tests/test_tool_date_enforcement.py` (+5 -0)
 - `tests/test_version.py` (+18 -0)
 - `tradingagents/__init__.py` (+1 -1)
 - `tradingagents/agents/analysts/fundamentals_analyst.py` (+33 -3)
 - `tradingagents/agents/analysts/market_analyst.py` (+21 -4)
 - `tradingagents/agents/analysts/news_analyst.py` (+15 -3)
+- `tradingagents/agents/analysts/sentiment_analyst.py` (+25 -32)
 - `tradingagents/agents/managers/portfolio_manager.py` (+11 -2)
 - `tradingagents/agents/managers/research_manager.py` (+5 -2)
+- `tradingagents/agents/post_screen.py` (+1 -1)
 - `tradingagents/agents/researchers/bear_researcher.py` (+5 -2)
 - `tradingagents/agents/researchers/bull_researcher.py` (+5 -2)
 - `tradingagents/agents/risk_mgmt/aggressive_debator.py` (+3 -1)
@@ -198,27 +205,28 @@ Compared with commit `c454491` (TradingAgents v0.7.1). A file that is not listed
 - `tradingagents/agents/state.py` (+3 -0)
 - `tradingagents/agents/structured.py` (+88 -14)
 - `tradingagents/agents/tools.py` (+227 -0)
-- `tradingagents/dataflows/router.py` (+120 -2)
-- `tradingagents/dataflows/vendors/reddit.py` (+2 -1)
+- `tradingagents/dataflows/date_window.py` (+2 -2)
+- `tradingagents/dataflows/router.py` (+124 -2)
 - `tradingagents/dataflows/vendors/stocktwits.py` (+2 -1)
 - `tradingagents/dataflows/vendors/yahoo/fundamentals.py` (+79 -3)
 - `tradingagents/dataflows/vendors/yahoo/market.py` (+20 -2)
 - `tradingagents/dataflows/vendors/yahoo/news.py` (+15 -2)
 - `tradingagents/dataflows/vendors/yahoo/ohlcv.py` (+46 -0)
 - `tradingagents/dataflows/vendors/yahoo/snapshot.py` (+98 -0)
-- `tradingagents/default_config.py` (+22 -0)
+- `tradingagents/default_config.py` (+24 -1)
 - `tradingagents/graph/setup.py` (+34 -14)
 - `tradingagents/graph/trading_graph.py` (+20 -1)
 - `tradingagents/portfolio.py` (+33 -1)
 - `tradingagents/report_html.py` (+53 -19)
 - `tradingagents/reporting.py` (+11 -0)
 
-#### Files we added (120)
+#### Files we added (124)
 
-**Tests** (46)
+**Tests** (48)
 
 - `tests/fixtures/scorecard_example.json`
 - `tests/picker_world.py`
+- `tests/test_bluesky.py`
 - `tests/test_changes_document.py`
 - `tests/test_company_statements.py`
 - `tests/test_conviction_note.py`
@@ -250,6 +258,7 @@ Compared with commit `c454491` (TradingAgents v0.7.1). A file that is not listed
 - `tests/test_research_panel.py`
 - `tests/test_scorecard.py`
 - `tests/test_sec_filing_events.py`
+- `tests/test_sec_insiders.py`
 - `tests/test_selloff_rules.py`
 - `tests/test_structured_fallback_counts.py`
 - `tests/test_style.py`
@@ -305,8 +314,9 @@ Compared with commit `c454491` (TradingAgents v0.7.1). A file that is not listed
 - `tradingagents/research/analyst_study.py`
 - `tradingagents/research/track_record.py`
 
-**Data sources** (16)
+**Data sources** (18)
 
+- `tradingagents/dataflows/vendors/bluesky.py`
 - `tradingagents/dataflows/vendors/company_statements.py`
 - `tradingagents/dataflows/vendors/finra_short.py`
 - `tradingagents/dataflows/vendors/fred_backdrop.py`
@@ -314,6 +324,7 @@ Compared with commit `c454491` (TradingAgents v0.7.1). A file that is not listed
 - `tradingagents/dataflows/vendors/public_records.py`
 - `tradingagents/dataflows/vendors/quiver.py`
 - `tradingagents/dataflows/vendors/sec_filing_events.py`
+- `tradingagents/dataflows/vendors/sec_insiders.py`
 - `tradingagents/dataflows/vendors/yahoo/analyst_history.py`
 - `tradingagents/dataflows/vendors/yahoo/earnings.py`
 - `tradingagents/dataflows/vendors/yahoo/health.py`
@@ -362,9 +373,11 @@ Compared with commit `c454491` (TradingAgents v0.7.1). A file that is not listed
 - `tradingagents/live_events.py`
 - `tradingagents/project.py`
 
-#### Upstream files we removed (2)
+#### Upstream files we removed (4)
 
 - `assets/TauricResearch.png`
+- `tests/test_reddit_fallback.py`
 - `tradingagents/assets/tauric-logo.svg`
+- `tradingagents/dataflows/vendors/reddit.py`
 
 <!-- inventory:end -->
